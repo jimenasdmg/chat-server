@@ -5,13 +5,13 @@
 	"author": "Jorge Mario Figueroa García",
 	"description": "Desarrollo Web Avanzado",
 	"scripts": {
-		"start": "nodemon wsServerClass.js",
-		"mario": "nodemon wsClienteClass.js Mario",
-		"carlos": "nodemon wsClienteClass.js Carlos",
-		"sergio": "nodemon wsClienteClass.js Sergio",
-		"chatMarioSergio": "nodemon chatFecha.js Mario Sergio",
-		"chatSergioMario": "nodemon chatFecha.js Sergio Mario",
-		"chatCarlosTodos": "nodemon chatFecha.js Carlos Todos"
+		"start": "node wsServerClass.js",
+		"mario": "node wsClienteClass.js Mario",
+		"carlos": "node wsClienteClass.js Carlos",
+		"sergio": "node wsClienteClass.js Sergio",
+		"chatMarioSergio": "node chatFecha.js Mario Sergio",
+		"chatSergioMario": "node chatFecha.js Sergio Mario",
+		"chatCarlosTodos": "node chatFecha.js Carlos Todos"
 	},
 	"type": "module",
 	"main": "server.js",
