@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Comunicación asíncrona</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+	<script src="js/index.js"></script>
+	<script src="js/controlador.js"></script>
+	<script src="js/vista.js"></script>
+	<script src="js/ajax.js"></script>
+	<link rel="stylesheet" href="css/index.css">
+</head>
+<body>
+	<div class="cajaFlexible">
+		<select id="modulo">
+			<option id = "ND" value="ND" selected>Seleccione un módulo</option>
+			<option id="calculadora" value="calculadora">Calculadora</option>
+			<option id="textos" value="textos">Textos</option>
+			<option id="usuarios" value="usuarios">usuarios</option>
+		</select>
+		<select id="servicio">
+			<option value="ND" selected>Seleccione un servicio</option>
+			<option value="sumar" class="oculto">Sumar</option>
+			<option value="restar" class="oculto">Restar</option>
+			<option value="multiplicar" class="oculto">Multiplicar</option>
+			<option value="dividir" class="oculto">Dividir</option>
+			<option value="aMayusculas" class="oculto">convertir a mayúsculas</option>
+			<option value="aMinusculas" class="oculto">Convertir a minúsculas</option>
+			<option value="aCapital" class="oculto">Convertir a capital</option>
+			<option value="consultas" class="oculto">Consulta general</option>
+			<option value="altaUsuario" class="oculto">Alta usuario</option>
+			<option value="bajaUsuario" class="oculto">Baja usuario</option>
+			<option value="editarUsuario" class="oculto">Editar usuario</option>
+			<option value="buscarUsuario" class="oculto">Buscar usuario</option>
+		</select>
+	</div>
+	<div id = "formCalculadora" class="oculto">
+		<div class="cajaFlexible">
+			<input type="number" id="x" value="0">
+			<input type="number" id="y" value="0">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Calcular" id="calcular_calculadora" class="noCrecer">
+		</div>
+		<div class="cajaFlexible">
+			<input type="text" value="" id="resultado_calculadora" placeholder="El resultado se muestra aquí" readonly>
+		</div>
+	</div>
+
+	<div id = "formTextos" class="oculto">
+		<div class="cajaFlexible">
+			<input type="text" id="texto" placeholder="Introduzca el texto a procesar">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Calcular" id="calcular_textos" class="noCrecer">
+		</div>
+		<div class="cajaFlexible">
+			<input type="text" value="" id="resultado_textos" placeholder="El resultado se muestra aquí" readonly>
+		</div>
+	</div>
+
+	<div id = "formUsuarios" class="oculto">
+		<div class="cajaFlexible">
+			<select id="orden">
+				<option value="1">Orden ascendente</option>
+				<option value="0">Orden descendente</option>
+			</select>
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Calcular" id="calcular_usuarios" class="noCrecer">
+		</div>
+		<div class="cajaFlexible">
+			<textarea id="resultado_usuarios" placeholder="El resultado se muestra aquí"></textarea>
+		</div>
+	</div>
+
+	<!-- Formulario Alta Usuario -->
+	<div id="formAltaUsuario" class="oculto">
+		<div class="cajaFlexible">
+			<input type="text" id="login_alta" placeholder="CURP">
+			<input type="text" id="nombre_alta" placeholder="Nombre">
+			<input type="text" id="papellido_alta" placeholder="Apellido paterno">
+			<input type="text" id="sapellido_alta" placeholder="Apellido materno">
+		</div>
+		<div class="cajaFlexible">
+			<input type="date" id="nacimiento_alta">
+			<select id="genero_alta">
+				<option value="M">M</option>
+				<option value="F">F</option>
+			</select>
+		</div>
+		<div class="cajaFlexible">
+			<video id="video_alta" autoplay></video>
+			<button id="activarCamara_alta">Activar cámara</button>
+			<button id="tomarFoto_alta">Tomar Foto</button>
+			<canvas id="canvas_alta" style="display:none;"></canvas>
+			<input type="hidden" id="foto_alta">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Alta" id="calcular_altaUsuario" class="noCrecer">
+		</div>
+		<div class="cajaFlexible">
+			<input type="text" id="resultado_altaUsuario" placeholder="Resultado de la operación" readonly>
+		</div>
+	</div>
+
+	<!-- Formulario Baja Usuario -->
+	<div id="formBajaUsuario" class="oculto">
+		<div class="cajaFlexible">
+			<input type="text" id="login_baja" placeholder="CURP">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Baja" id="calcular_bajaUsuario" class="noCrecer">
+		</div>
+	</div>
+
+	<!-- Formulario Buscar Usuario -->
+	<div id="formBuscarUsuario" class="oculto">
+		<div class="cajaFlexible">
+			<input type="text" id="login_buscar" placeholder="CURP">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Buscar" id="calcular_buscarUsuario" class="noCrecer">
+		</div>
+		<div class="cajaFlexible">
+			<textarea id="resultado_buscar" placeholder="El resultado se muestra aquí" readonly></textarea>
+		</div>
+	</div>
+
+	<!-- Formulario Editar Usuario -->
+	<div id="formEditarUsuario" class="oculto">
+		<div class="cajaFlexible">
+			<input type="text" id="login_editar" placeholder="CURP">
+			<input type="submit" value="Buscar" id="calcular_buscarUsuario_editar" class="noCrecer">
+			<input type="text" id="nombre_editar" placeholder="Nombre">
+			<input type="text" id="papellido_editar" placeholder="Apellido paterno">
+			<input type="text" id="sapellido_editar" placeholder="Apellido materno">
+		</div>
+		<div class="cajaFlexible">
+			<input type="date" id="nacimiento_editar">
+			<select id="genero_editar">
+				<option value="M">M</option>
+				<option value="F">F</option>
+			</select>
+		</div>
+		<div class="cajaFlexible">
+			<video id="video_editar" autoplay></video>
+			<button id="activarCamara_editar">Activar cámara</button>
+			<button id="tomarFoto_editar">Tomar Foto</button>
+			<canvas id="canvas_editar" style="display:none;"></canvas>
+			<input type="hidden" id="foto_editar">
+		</div>
+		<div class="cajaFlexible">
+			<input type="submit" value="Guardar" id="calcular_editarUsuario" class="noCrecer">
+		</div>
+	</div>
+</body>
+</html>

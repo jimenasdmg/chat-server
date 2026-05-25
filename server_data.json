@@ -1,0 +1,692 @@
+{
+  "lastId": 36,
+  "clients": [],
+  "messages": [
+    {
+      "id": 1,
+      "emisor": "PruebaCliente",
+      "receptor": "Todos",
+      "mensaje": "Hola desde test_client",
+      "ts": 1777491283850,
+      "broadcast": true,
+      "readBy": [
+        "PruebaCliente",
+        "BOB"
+      ]
+    },
+    {
+      "id": 2,
+      "emisor": "Uriel",
+      "receptor": [
+        "Jimena"
+      ],
+      "mensaje": "hola",
+      "ts": 1777491898333,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ]
+    },
+    {
+      "id": 3,
+      "emisor": "PruebaCliente",
+      "receptor": "Todos",
+      "mensaje": "Hola desde test_client",
+      "ts": 1777492419423,
+      "broadcast": true,
+      "readBy": [
+        "Sergio"
+      ]
+    },
+    {
+      "id": 4,
+      "emisor": "PruebaCliente",
+      "receptor": "Todos",
+      "mensaje": "Hola desde test_client",
+      "ts": 1777493037061,
+      "broadcast": true,
+      "readBy": [
+        "Iván"
+      ]
+    },
+    {
+      "id": 1,
+      "emisor": "Isabel",
+      "receptor": [
+        "unidos"
+      ],
+      "mensaje": "hola",
+      "ts": 1777493412652,
+      "broadcast": false,
+      "readBy": []
+    },
+    {
+      "id": 1,
+      "emisor": "Iván",
+      "receptor": "M",
+      "mensaje": "Hola",
+      "ts": 1778099714361,
+      "broadcast": false,
+      "readBy": []
+    },
+    {
+      "id": 2,
+      "emisor": "Iván",
+      "receptor": "O",
+      "mensaje": "hola",
+      "ts": 1778100037433,
+      "broadcast": false,
+      "readBy": []
+    },
+    {
+      "id": 3,
+      "emisor": "Iván",
+      "receptor": "J",
+      "mensaje": "Hola",
+      "ts": 1778100393123,
+      "broadcast": false,
+      "readBy": [
+        "Sergio"
+      ]
+    },
+    {
+      "id": 4,
+      "emisor": "Antonio",
+      "receptor": "Todos",
+      "mensaje": "Hola amigos",
+      "ts": 1778100689013,
+      "broadcast": true,
+      "readBy": [
+        "Iván"
+      ]
+    },
+    {
+      "id": 5,
+      "emisor": "Antonio",
+      "receptor": "Todos",
+      "mensaje": "holss",
+      "ts": 1778100717551,
+      "broadcast": true,
+      "readBy": []
+    },
+    {
+      "id": 6,
+      "emisor": "Jimena",
+      "receptor": "Todos",
+      "mensaje": "Hola",
+      "ts": 1778101051203,
+      "broadcast": true,
+      "readBy": [
+        "Isabel"
+      ]
+    },
+    {
+      "id": 7,
+      "emisor": "Jimena",
+      "receptor": "Todos",
+      "mensaje": "hola",
+      "ts": 1778101087083,
+      "broadcast": true,
+      "readBy": []
+    },
+    {
+      "id": 8,
+      "emisor": "Uriel",
+      "receptor": "Todos",
+      "mensaje": "Hola",
+      "ts": 1778101939574,
+      "broadcast": true,
+      "readBy": []
+    },
+    {
+      "emisor": "PruebaCliente",
+      "receptor": "Todos",
+      "mensaje": "Hola desde test_client",
+      "ts": 1778472703314,
+      "broadcast": true,
+      "readBy": [],
+      "id": 9
+    },
+    {
+      "id": 1,
+      "emisor": "Ali",
+      "receptor": [
+        "BOB"
+      ],
+      "mensaje": "hola",
+      "ts": 1778473576642,
+      "broadcast": false,
+      "readBy": [
+        "BOB"
+      ]
+    },
+    {
+      "emisor": "Omar",
+      "receptor": "Todos",
+      "mensaje": "hola",
+      "ts": 1778475284265,
+      "broadcast": true,
+      "readBy": [],
+      "clientId": "c-1778475284267-584936",
+      "id": 10
+    },
+    {
+      "emisor": "Manolo",
+      "receptor": [
+        "Equipo de trabajo"
+      ],
+      "mensaje": "Hola amigos",
+      "ts": 1778476585832,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778476585831-182273",
+      "id": 11
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": [
+        "Equipo de trabajo"
+      ],
+      "mensaje": "Hola",
+      "ts": 1778477874365,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778477874365-462577",
+      "id": 12
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": [
+        "Jimena"
+      ],
+      "mensaje": "hola",
+      "ts": 1778477896932,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ],
+      "clientId": "c-1778477896931-894825",
+      "id": 13
+    },
+    {
+      "emisor": "Sergio",
+      "receptor": [
+        "Jimena"
+      ],
+      "mensaje": "hola",
+      "ts": 1778528711160,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ],
+      "clientId": "c-1778528711150-842590",
+      "id": 14
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": [
+        "Jimena"
+      ],
+      "mensaje": "hola",
+      "ts": 1778528801463,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ],
+      "clientId": "c-1778528801461-845200",
+      "id": 15
+    },
+    {
+      "emisor": "Jimena",
+      "receptor": [
+        "Antonio"
+      ],
+      "mensaje": "Hola toño",
+      "ts": 1778529289520,
+      "broadcast": false,
+      "readBy": [
+        "Antonio"
+      ],
+      "clientId": "c-1778529289517-279297",
+      "id": 16
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": [
+        "Sergio"
+      ],
+      "mensaje": "Hola",
+      "ts": 1778529794035,
+      "broadcast": false,
+      "readBy": [
+        "Sergio"
+      ],
+      "clientId": "c-1778529794038-757967",
+      "id": 17
+    },
+    {
+      "emisor": "Luis",
+      "receptor": "Trabajo",
+      "mensaje": "Hola amigos",
+      "ts": 1778529871706,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778529871706-2794",
+      "id": 18
+    },
+    {
+      "emisor": "Sergio",
+      "receptor": "Equipo de trabajo",
+      "mensaje": "Hola",
+      "ts": 1778530433904,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778530433905-856625",
+      "id": 19
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": "Equipo de trabajo",
+      "mensaje": "Hola",
+      "ts": 1778530470759,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778530470756-854248",
+      "id": 20
+    },
+    {
+      "emisor": "Manolo",
+      "receptor": "Trabajo",
+      "mensaje": "Hola",
+      "ts": 1778530795062,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "c-1778530795061-605187",
+      "id": 21
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": "Jimena",
+      "mensaje": "Hola jime",
+      "ts": 1778531545981,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ],
+      "clientId": "c-1778531545978-731531",
+      "id": 22
+    },
+    {
+      "emisor": "Jimena",
+      "receptor": "Sergio",
+      "mensaje": "holaa",
+      "ts": 1778531557774,
+      "broadcast": false,
+      "readBy": [
+        "Sergio"
+      ],
+      "clientId": "c-1778531557773-259138",
+      "id": 23
+    },
+    {
+      "emisor": "Manolo",
+      "receptor": "Sergio",
+      "mensaje": "hola yeyo",
+      "ts": 1778531578282,
+      "broadcast": false,
+      "readBy": [
+        "Sergio"
+      ],
+      "clientId": "c-1778531578280-818740",
+      "id": 24
+    },
+    {
+      "emisor": "Manolo",
+      "tipo": "grupo",
+      "grupo": "Equipo de trabajo",
+      "mensaje": "holaaa",
+      "ts": 1778531863846,
+      "broadcast": false,
+      "readBy": [
+        "Sergio",
+        "Isabel",
+        "Jimena"
+      ],
+      "id": 25
+    },
+    {
+      "emisor": "Manolo",
+      "tipo": "grupo",
+      "grupo": "Equipo de trabajo",
+      "mensaje": "hola",
+      "ts": 1778532312401,
+      "broadcast": false,
+      "readBy": [
+        "Sergio",
+        "Isabel"
+      ],
+      "id": 26
+    },
+    {
+      "emisor": "Manolo",
+      "tipo": "grupo",
+      "grupo": "Equipo de trabajo",
+      "mensaje": "hola equipo",
+      "ts": 1778532653674,
+      "broadcast": false,
+      "readBy": [
+        "Sergio",
+        "Isabel"
+      ],
+      "id": 27
+    },
+    {
+      "emisor": "Manolo",
+      "tipo": "grupo",
+      "grupo": "Manuelangas",
+      "mensaje": "hola",
+      "ts": 1778532920257,
+      "broadcast": false,
+      "readBy": [
+        "Bob",
+        "Elvis"
+      ],
+      "id": 28
+    },
+    {
+      "emisor": "Bob",
+      "receptor": "Elvis",
+      "mensaje": "hola",
+      "ts": 1778532931855,
+      "broadcast": false,
+      "readBy": [
+        "Elvis"
+      ],
+      "clientId": "19d7263a-1fa2-4104-9c29-77fb7bd1cd5e",
+      "id": 29
+    },
+    {
+      "emisor": "Bob",
+      "tipo": "grupo",
+      "grupo": "Manuelangas",
+      "mensaje": "hola",
+      "ts": 1778533263065,
+      "broadcast": false,
+      "readBy": [
+        "Manolo"
+      ],
+      "id": 30
+    },
+    {
+      "emisor": "Manolo",
+      "receptor": "Elvis",
+      "mensaje": "HOLA AMIGO",
+      "ts": 1778533291941,
+      "broadcast": false,
+      "readBy": [
+        "Elvis"
+      ],
+      "clientId": "3e5c348d-8c27-405a-b1ae-05fa99b5fea6",
+      "id": 31
+    },
+    {
+      "emisor": "Elvis",
+      "receptor": "Bob",
+      "mensaje": "HOLA",
+      "ts": 1778533307060,
+      "broadcast": false,
+      "readBy": [
+        "Bob"
+      ],
+      "clientId": "a7d323a6-e537-4a00-a20d-6fbdffe6d4da",
+      "id": 32
+    },
+    {
+      "emisor": "Manolo",
+      "receptor": "Bob",
+      "mensaje": "HOLA",
+      "ts": 1778533329995,
+      "broadcast": false,
+      "readBy": [
+        "Bob"
+      ],
+      "clientId": "bd2d27e7-66e9-491a-91cb-f8b232ed160a",
+      "id": 33
+    },
+    {
+      "emisor": "Isabel",
+      "tipo": "grupo",
+      "grupo": "Trabajo",
+      "mensaje": "hola",
+      "ts": 1778609442331,
+      "broadcast": false,
+      "readBy": [
+        "Sergio"
+      ],
+      "id": 34
+    },
+    {
+      "emisor": "Isabel",
+      "receptor": "Jimena",
+      "mensaje": "Hola",
+      "ts": 1779312015430,
+      "broadcast": false,
+      "readBy": [
+        "Jimena"
+      ],
+      "clientId": "d4c3296e-65dc-4589-8256-a6ba65e1e5ef",
+      "id": 35
+    },
+    {
+      "emisor": "Jimena",
+      "receptor": "Isabel",
+      "mensaje": "Hola",
+      "ts": 1779395959666,
+      "broadcast": false,
+      "readBy": [],
+      "clientId": "568cb901-6707-46db-a29a-ff80f2939cdc",
+      "id": 36
+    }
+  ],
+  "users": [
+    {
+      "nombre": "Jimena",
+      "firstSeen": 1777493236660,
+      "lastSeen": 1779395933401
+    },
+    {
+      "nombre": "Uriel",
+      "firstSeen": 1777493245899,
+      "lastSeen": 1778101885917
+    },
+    {
+      "nombre": "Isabel",
+      "firstSeen": 1777493253322,
+      "lastSeen": 1779395963655
+    },
+    {
+      "nombre": "Sergio",
+      "firstSeen": 1777493939533,
+      "lastSeen": 1778609301600
+    },
+    {
+      "nombre": "Ana",
+      "firstSeen": 1778098476333,
+      "lastSeen": 1778099384071
+    },
+    {
+      "nombre": "Roberto",
+      "firstSeen": 1778099606217,
+      "lastSeen": 1778099789633
+    },
+    {
+      "nombre": "Iván",
+      "firstSeen": 1778099646852,
+      "lastSeen": 1778529433684
+    },
+    {
+      "nombre": "Antonio",
+      "firstSeen": 1778099662556,
+      "lastSeen": 1778529433667
+    },
+    {
+      "nombre": "Luis",
+      "firstSeen": 1778100354685,
+      "lastSeen": 1778609461637
+    },
+    {
+      "nombre": "Jimena-1",
+      "firstSeen": 1778101847234,
+      "lastSeen": 1778534371360
+    },
+    {
+      "nombre": "PruebaCliente",
+      "firstSeen": 1778472703115,
+      "lastSeen": 1778472703923
+    },
+    {
+      "nombre": "BOB",
+      "firstSeen": 1778473552863,
+      "lastSeen": 1778474278828
+    },
+    {
+      "nombre": "Ali",
+      "firstSeen": 1778473567506,
+      "lastSeen": 1778473874310
+    },
+    {
+      "nombre": "Elvis",
+      "firstSeen": 1778474291540,
+      "lastSeen": 1778534976983
+    },
+    {
+      "nombre": "Maria",
+      "firstSeen": 1778474618758,
+      "lastSeen": 1778474899664
+    },
+    {
+      "nombre": "Manolo",
+      "firstSeen": 1778475173905,
+      "lastSeen": 1778533454344
+    },
+    {
+      "nombre": "Omar",
+      "firstSeen": 1778475246182,
+      "lastSeen": 1778475787839
+    },
+    {
+      "nombre": "Bob",
+      "firstSeen": 1778477275513,
+      "lastSeen": 1778534976975
+    },
+    {
+      "nombre": "ELVIS",
+      "firstSeen": 1778477674992,
+      "lastSeen": 1778477702004
+    },
+    {
+      "nombre": "jimena-1",
+      "firstSeen": 1778534375216,
+      "lastSeen": 1778534976978
+    }
+  ],
+  "groups": [
+    {
+      "nombreGrupo": "unidos",
+      "miembros": [
+        "Jimena",
+        "Uriel"
+      ]
+    },
+    {
+      "nombreGrupo": "Amigos",
+      "miembros": [
+        "Jimena",
+        "Ana"
+      ]
+    },
+    {
+      "nombreGrupo": "KI",
+      "miembros": [
+        "Uriel"
+      ]
+    },
+    {
+      "nombreGrupo": "M",
+      "miembros": [
+        "Sergio",
+        "Iván"
+      ]
+    },
+    {
+      "nombreGrupo": "O",
+      "miembros": [
+        "Sergio",
+        "Iván"
+      ]
+    },
+    {
+      "nombreGrupo": "J",
+      "miembros": [
+        "Iván",
+        "Sergio"
+      ]
+    },
+    {
+      "nombreGrupo": "h",
+      "miembros": [
+        "Iván",
+        "Sergio",
+        "Antonio"
+      ]
+    },
+    {
+      "nombreGrupo": "Sa",
+      "miembros": [
+        "Isabel",
+        "Sergio",
+        "Jimena"
+      ]
+    },
+    {
+      "nombreGrupo": "K",
+      "miembros": [
+        "Jimena-1",
+        "Isabel",
+        "Uriel"
+      ]
+    },
+    {
+      "nombreGrupo": "GrupoPrueba",
+      "miembros": [
+        "PruebaCliente"
+      ]
+    },
+    {
+      "nombreGrupo": "Equipo de trabajo",
+      "miembros": [
+        "Jimena",
+        "Isabel",
+        "Sergio",
+        "Manolo"
+      ]
+    },
+    {
+      "nombreGrupo": "Manuelangas",
+      "miembros": [
+        "Elvis",
+        "Bob",
+        "Manolo"
+      ]
+    },
+    {
+      "nombreGrupo": "Trabajo",
+      "miembros": [
+        "Sergio",
+        "Isabel",
+        "Manolo",
+        "Luis"
+      ]
+    }
+  ]
+}

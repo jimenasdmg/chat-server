@@ -1,0 +1,24 @@
+{
+	"name": "server_cors",
+	"license": "ISC",
+	"version": "1.0.0",
+	"author": "Jorge Mario Figueroa García",
+	"description": "Desarrollo Web Avanzado",
+	"scripts": {
+		"start": "nodemon wsServerClass.js",
+		"mario": "nodemon wsClienteClass.js Mario",
+		"carlos": "nodemon wsClienteClass.js Carlos",
+		"sergio": "nodemon wsClienteClass.js Sergio",
+		"chatMarioSergio": "nodemon chatFecha.js Mario Sergio",
+		"chatSergioMario": "nodemon chatFecha.js Sergio Mario",
+		"chatCarlosTodos": "nodemon chatFecha.js Carlos Todos"
+	},
+	"type": "module",
+	"main": "server.js",
+	"keywords": [],
+	"dependencies": {
+		"mariadb": "^3.5.1",
+		"mysql2": "^3.22.3",
+		"ws": "^8.20.0"
+	}
+}
