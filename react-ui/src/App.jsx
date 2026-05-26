@@ -2,11 +2,14 @@ import React, { useState } from 'react'
 import useWebSocket from './useWebSocket'
 import ConnectionPanel from './components/ConnectionPanel'
 import UsersList from './components/UsersList'
+import ContactList from './components/ContactList'
 import ChatWindow from './components/ChatWindow'
+import AddContactModal from './components/AddContactModal'
+import CreateGroupModal from './components/CreateGroupModal'
 
 export default function App() {
   const [username, setUsername] = useState('')
-  const [wsUrl, setWsUrl] = useState('wss://chat-server-production-1abc.up.railway.app')
+  const [wsUrl, setWsUrl] = useState('ws://localhost:8083')
   const [usuarioActual, setUsuarioActual] = useState('')
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState('Todos')
   const [unread, setUnread] = useState({})
@@ -23,8 +26,19 @@ export default function App() {
     createGroup,
     loadMessagesFor,
     leaveGroup,
-    deleteContact
-  , renameGroup, renameContact } = useWebSocket()
+    deleteContact,
+    renameGroup,
+    renameContact,
+    addContact,
+    contacts,
+    contactsByUser,
+    groupsByUser,
+    dbReady
+  } = useWebSocket()
+  
+
+  const [showAddContactModal, setShowAddContactModal] = useState(false)
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
 
   // Track new private messages and increment unread counts when appropriate
   React.useEffect(() => {
@@ -80,17 +94,34 @@ export default function App() {
               connected={connected}
             />
 
-            <UsersList
+            <ContactList
+              contacts={contacts}
+              contactsByUser={contactsByUser}
+              groupsByUser={groupsByUser}
+              currentUser={usuarioActual}
               usuarios={usuarios}
+              username={username}
+              dbReady={dbReady}
+              grupos={groups}
               groups={groups}
               usuarioSeleccionado={usuarioSeleccionado}
               onSelect={setUsuarioSeleccionado}
               usuarioActual={usuarioActual}
-                mensajes={messages}
+              mensajes={messages}
               onCreateGroup={createGroup}
-                unread={unread}
+              onOpenCreateGroup={() => setShowCreateGroupModal(true)}
+              unread={unread}
+              addContact={addContact}
+              onOpenAddContact={() => setShowAddContactModal(true)}
             />
           </aside>
+
+          {showAddContactModal && (
+            <AddContactModal
+              onClose={() => { setShowAddContactModal(false) }}
+              onAdd={(username) => { if (typeof addContact === 'function') addContact(username) }}
+            />
+          )}
 
           <section className="chat">
             <ChatWindow
@@ -99,6 +130,7 @@ export default function App() {
               setUsuarioSeleccionado={setUsuarioSeleccionado}
                 usuarios={usuarios}
                 groups={groups}
+              contacts={contacts}
               mensajes={messages}
               onSend={sendChat}
               onMarkAsRead={sendReadReceipt}
@@ -113,6 +145,18 @@ export default function App() {
 
         </main>
       </div>
+      {showCreateGroupModal && (
+        <CreateGroupModal
+          contacts={contacts}
+          currentUser={usuarioActual}
+          onClose={() => setShowCreateGroupModal(false)}
+          onCreate={(payload) => {
+            // payload: { nombreGrupo, miembros }
+            if (typeof createGroup === 'function') createGroup(payload.nombreGrupo, payload.miembros)
+            setShowCreateGroupModal(false)
+          }}
+        />
+      )}
     </div>
   )
 }

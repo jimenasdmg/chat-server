@@ -1,6 +1,6 @@
 const DB_NAME = 'Chat'
-const STORE_VERSION = 3
-const STORE_NAME = 'grupos'
+const STORE_VERSION = 4
+const GROUP_STORE = 'grupos'
 const MESSAGE_STORE = 'mensajes'
 const CONTACT_STORE = 'contactos'
 
@@ -20,16 +20,15 @@ class chatDB {
 
 			request.onupgradeneeded = (e) => {
 				const db = e.target.result
-				if (!db.objectStoreNames.contains(STORE_NAME)) {
-					db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: false })
-				}
-				if (!db.objectStoreNames.contains(MESSAGE_STORE)) {
-					db.createObjectStore(MESSAGE_STORE, { keyPath: 'id', autoIncrement: false })
-				}
-				if (!db.objectStoreNames.contains(CONTACT_STORE)) {
-					db.createObjectStore(CONTACT_STORE, { keyPath: 'id', autoIncrement: false })
-				}
-				console.log('IndexedDB: estructura de la base de datos creada/actualizada')
+				// On version change, remove old stores to ensure clean schema migration
+				try { if (db.objectStoreNames.contains(CONTACT_STORE)) db.deleteObjectStore(CONTACT_STORE) } catch (er) {}
+				try { if (db.objectStoreNames.contains(GROUP_STORE)) db.deleteObjectStore(GROUP_STORE) } catch (er) {}
+				try { if (db.objectStoreNames.contains(MESSAGE_STORE)) db.deleteObjectStore(MESSAGE_STORE) } catch (er) {}
+
+				// create independent stores
+				if (!db.objectStoreNames.contains(MESSAGE_STORE)) db.createObjectStore(MESSAGE_STORE, { keyPath: 'id', autoIncrement: false })
+				if (!db.objectStoreNames.contains(CONTACT_STORE)) db.createObjectStore(CONTACT_STORE, { keyPath: 'id', autoIncrement: false })
+				if (!db.objectStoreNames.contains(GROUP_STORE)) db.createObjectStore(GROUP_STORE, { keyPath: 'id', autoIncrement: false })
 			}
 
 			request.onsuccess = (e) => {
@@ -66,8 +65,8 @@ class chatDB {
 	async add(id, integrantes) {
 		try {
 			// Creamos una transacción de 'readwrite' (lectura y escritura).
-			const tx = this.db.transaction(STORE_NAME, 'readwrite')
-			const store = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
 			
 			return new Promise((resolve, reject) => {
 				// .add() inserta el objeto. El ID se genera automáticamente.
@@ -452,15 +451,14 @@ class chatDB {
 	/**
 	 * READ: Trae todos los datos del almacén.
 	 */
-	async getAll() {
+	async getAll(storeName) {
 		try {
-			// Usamos 'readonly' porque solo vamos a consultar datos.
-			const tx = this.db.transaction(STORE_NAME, 'readonly')
-			const store = tx.objectStore(STORE_NAME)
-			
+			// If caller passed a storeName, delegate to getAllStore
+			if (storeName) return await this.getAllStore(storeName)
+			const tx = this.db.transaction(GROUP_STORE, 'readonly')
+			const store = tx.objectStore(GROUP_STORE)
 			return new Promise((resolve) => {
 				const request = store.getAll()
-				// request.result será un array con todos los objetos encontrados.
 				request.onsuccess = () => resolve(request.result)
 			})
 		} catch (err) {
@@ -469,14 +467,85 @@ class chatDB {
 		}
 	}
 
+	// Generic getAll for any store name
+	async getAllStore(storeName) {
+		try {
+			if (!this.db) return []
+			if (!this.db.objectStoreNames.contains(storeName)) return []
+			const tx = this.db.transaction(storeName, 'readonly')
+			const store = tx.objectStore(storeName)
+			return new Promise((resolve) => {
+				const req = store.getAll()
+				req.onsuccess = () => resolve(req.result || [])
+			})
+		} catch (err) { console.error('Error in getAllStore:', err); return [] }
+	}
+
+	// Contacts / Groups helpers
+	async saveContacts(list) {
+		try {
+			if (!Array.isArray(list)) return
+			const tx = this.db.transaction(CONTACT_STORE, 'readwrite')
+			const store = tx.objectStore(CONTACT_STORE)
+			await new Promise((res) => { const r = store.clear(); r.onsuccess = () => res(); r.onerror = () => res() })
+			for (const c of list) {
+				const username = (typeof c === 'string') ? c : (c.username || c.nombre || c.id || '')
+				const id = username ? username.toString().trim().toLowerCase() : null
+				if (!id) continue
+				const toSave = { id, nombre: (typeof c === 'string') ? username : (c.username || c.nombre || username), lastSeen: c.last_seen || c.lastSeen || null }
+				try { store.put(toSave) } catch (e) {}
+			}
+			console.log('CONTACTOS DB', await this.getAllStore(CONTACT_STORE))
+		} catch (err) { console.error('saveContacts error', err) }
+	}
+
+	async getContacts() {
+		try { return await this.getAllStore(CONTACT_STORE) } catch (e) { return [] }
+	}
+
+	async clearAllContacts() { return this.clearContacts() }
+
+	async saveGroups(list) {
+		try {
+			if (!Array.isArray(list)) return
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
+			await new Promise((res) => { const r = store.clear(); r.onsuccess = () => res(); r.onerror = () => res() })
+			for (const g of list) {
+				const name = (typeof g === 'string') ? g : (g.nombreGrupo || g.nombre || g.id || '')
+				const id = name ? name.toString().trim() : null
+				if (!id) continue
+				const integrantes = Array.isArray(g.integrantes) ? g.integrantes : (Array.isArray(g.miembros) ? g.miembros : [])
+				try { store.put({ id, integrantes }) } catch (e) {}
+			}
+			console.log('GRUPOS DB', await this.getAllStore(GROUP_STORE))
+		} catch (err) { console.error('saveGroups error', err) }
+	}
+
+	async getGroups() {
+		try { return await this.getAllStore(GROUP_STORE) } catch (e) { return [] }
+	}
+
+	async clearGroups() {
+		try {
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
+			return new Promise((resolve, reject) => {
+				const req = store.clear()
+				req.onsuccess = () => resolve()
+				req.onerror = () => reject('Error limpiando grupos')
+			})
+		} catch (err) { console.error('Error en clearGroups:', err) }
+	}
+
 	/**
 	 * Eliminar al usuario `usuarioId` de los integrantes del grupo `groupId`.
 	 * Si el grupo existe, actualiza la lista de integrantes.
 	 */
 	async removeUserFromGroup(groupId, usuarioId) {
 		try {
-			const tx = this.db.transaction(STORE_NAME, 'readwrite')
-			const store = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
 			return new Promise((resolve, reject) => {
 				const req = store.get(groupId)
 				req.onsuccess = () => {
@@ -580,8 +649,8 @@ class chatDB {
 	 */
 	async renameGroup(oldName, newName) {
 		try {
-			const tx = this.db.transaction([STORE_NAME, MESSAGE_STORE], 'readwrite')
-			const gStore = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction([GROUP_STORE, MESSAGE_STORE], 'readwrite')
+			const gStore = tx.objectStore(GROUP_STORE)
 			const mStore = tx.objectStore(MESSAGE_STORE)
 			return new Promise((resolve, reject) => {
 				const getReq = gStore.get(oldName)
@@ -677,8 +746,8 @@ class chatDB {
 	 */
 	async update(id, nuevoNombre) {
 		try {
-			const tx = this.db.transaction(STORE_NAME, 'readwrite')
-			const store = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
 			
 			return new Promise((resolve, reject) => {
 				// .put() busca el ID. Si existe lo actualiza, si no, lo crea.
@@ -696,8 +765,8 @@ class chatDB {
 	 */
 	async delete(id) {
 		try {
-			const tx = this.db.transaction(STORE_NAME, 'readwrite')
-			const store = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
 			
 			return new Promise((resolve) => {
 				// Borramos el objeto que coincida con el ID numérico.
@@ -714,8 +783,8 @@ class chatDB {
 	 */
 	async clearAll() {
 		try {
-			const tx = this.db.transaction(STORE_NAME, 'readwrite')
-			const store = tx.objectStore(STORE_NAME)
+			const tx = this.db.transaction(GROUP_STORE, 'readwrite')
+			const store = tx.objectStore(GROUP_STORE)
 			
 			return new Promise((resolve, reject) => {
 				const request = store.clear()

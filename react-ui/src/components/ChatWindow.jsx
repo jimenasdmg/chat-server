@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import MessageBubble from './MessageBubble'
 
-export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsuarioSeleccionado, usuarios, groups = [], mensajes, onSend, onMarkAsRead, loadMessagesFor, clearUnread, leaveGroup, deleteContact, renameGroup, renameContact }) {
+export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsuarioSeleccionado, usuarios, groups = [], mensajes, onSend, onMarkAsRead, loadMessagesFor, clearUnread, leaveGroup, deleteContact, renameGroup, renameContact, contacts = [] }) {
   const [texto, setTexto] = useState('')
   const mensajesArea = useRef(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -103,7 +103,18 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
     <section className="chat phone-chat">
       <div className="chat-header">
         <button className="back" onClick={() => setUsuarioSeleccionado('Todos')}>←</button>
-        <div className="header-title">{usuarioSeleccionado || 'Todos'}</div>
+        <div style={{display:'flex', alignItems:'center', gap:12}}>
+          <div className="avatar small">{(usuarioSeleccionado||'').charAt(0).toUpperCase()}</div>
+          <div style={{display:'flex',flexDirection:'column'}}>
+            <div className="header-title">{usuarioSeleccionado || 'Todos'}</div>
+            {(usuarioSeleccionado && usuarioSeleccionado !== 'Todos') && (() => {
+              const c = (contacts || []).find(x => (x.username || '').toString().trim().toLowerCase() === (usuarioSeleccionado||'').toString().trim().toLowerCase())
+              const online = c ? !!c.online : (usuarios || []).includes(usuarioSeleccionado)
+              const lastSeen = c ? c.last_seen : null
+              return (<div style={{fontSize:13, color: online ? '#22c55e' : '#888'}}>{online ? 'En línea' : `Últ. vez ${lastSeen ? new Date(lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}`}</div>)
+            })()}
+          </div>
+        </div>
         {(usuarioSeleccionado && usuarioSeleccionado !== 'Todos') && (
           <div className="menu-wrapper" style={{position:'relative', marginLeft:8}}>
             <button className="btn" onClick={(e) => { e.stopPropagation(); setMenuOpen(s => !s) }} aria-label="Opciones">⋮</button>
@@ -171,11 +182,17 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
         )}
       </div>
 
-      <div className="messages" ref={mensajesArea}>
-        {mensajesFiltrados.map((m, i) => (
-          <MessageBubble key={m.id || m.localId || i} m={m} usuarioActual={usuarioActual} />
-        ))}
-      </div>
+      {(!usuarioSeleccionado || usuarioSeleccionado === 'Todos') ? (
+        <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#667', padding:20}}>
+          Selecciona un contacto para ver la conversación
+        </div>
+      ) : (
+        <div className="messages" ref={mensajesArea}>
+          {mensajesFiltrados.map((m, i) => (
+            <MessageBubble key={m.id || m.localId || i} m={m} usuarioActual={usuarioActual} />
+          ))}
+        </div>
+      )}
 
       {mensajesFiltrados.some(m => {
         const mEmNorm = m.emisorNorm || (m.emisor || '').toString().trim().toLowerCase()
@@ -185,12 +202,14 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
         <div className="new-bubble" onClick={() => { const el = mensajesArea.current; if(el) el.scrollTop = el.scrollHeight }}>Nuevos mensajes</div>
       )}
 
-      <div className="chat-send">
-        <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={`Mensaje a ${usuarioSeleccionado}`} />
-        <button onClick={handleSend} className="btn send" aria-label="Enviar">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-        </button>
-      </div>
+      {usuarioSeleccionado && usuarioSeleccionado !== 'Todos' && (
+        <div className="chat-send">
+          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={usuarioSeleccionado ? `Mensaje a ${usuarioSeleccionado}` : 'Selecciona un contacto'} />
+          <button onClick={handleSend} className="btn send" aria-label="Enviar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+          </button>
+        </div>
+      )}
     </section>
   )
 }

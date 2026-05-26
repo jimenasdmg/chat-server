@@ -1,4 +1,5 @@
 import "./server/db.js";
+import 'dotenv/config'
 import storage from './server/storage.js'
 import { WebSocketServer } from 'ws'
 import { writeFile, readFile, access } from 'node:fs/promises'
@@ -35,8 +36,17 @@ class wsServer {
 				// Persistir la desconexión
 				storage.removeClient(ws.data).catch(e => console.error('storage:removeClient', e))
 				storage.removeUser(ws.data).catch(e => console.error('storage:removeUser', e))
+				storage.updateOnline(ws.data, false).catch(e => console.error('storage:updateOnline', e))
 				// Informo a los otros clientes
-					this.CONECTADOS()
+				try { this.CONECTADOS() } catch (e) { /* ignore */ }
+				// Broadcast STATUS to all
+				try {
+					for (const cliente of this.wss.clients) {
+						if (!cliente || cliente.readyState !== 1) continue
+						this.MSG(cliente, 'STATUS', { user: ws.data, online: false })
+					}
+					console.log('STATUS', { user: ws.data, online: false })
+				} catch (e) { console.error('Error broadcasting STATUS on close', e) }
 			})
 
 			// Siempre que se conecte un nuevo cliente, informo a los otros
@@ -55,13 +65,25 @@ class wsServer {
 
 		await storage.addClient(ws.data).catch(e => console.error('storage:addClient', e))
 		await storage.addUser(ws.data).catch(e => console.error('storage:addUser', e))
+		await storage.updateOnline(ws.data, true).catch(e => console.error('storage:updateOnline', e))
 		try {
 			const historial = await storage.getMessages()
 			ws.send(JSON.stringify({ mensaje: 'HISTORIAL', data: historial }))
 			ws.send(JSON.stringify({ mensaje: 'GRUPOS', data: await storage.getGroups(ws.data) }))
 			ws.send(JSON.stringify({ mensaje: 'USERS', data: await storage.getUsers() }))
-			ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: await storage.getContacts(ws.data) }))
+			const contacts = await storage.getContacts(ws.data)
+			console.log('CONTACTOS', contacts)
+			ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: contacts }))
 		} catch (e) { }
+
+		// Broadcast STATUS true to all connected clients
+		try {
+			for (const cliente of this.wss.clients) {
+				if (!cliente || cliente.readyState !== 1) continue
+				this.MSG(cliente, 'STATUS', { user: ws.data, online: true })
+			}
+			console.log('STATUS', { user: ws.data, online: true })
+		} catch (e) { console.error('Error broadcasting STATUS on connect', e) }
 
         try {
             const pending = await storage.getPending(ws.data)
@@ -86,6 +108,8 @@ class wsServer {
 	}
 
 	async CHAT(ws, data) {
+		console.log("ENTRÓ CHAT")
+		console.log("DATA CHAT:", data)
 		if(data) {
 			const emisor = ws.data,
 			{receptor, mensaje, clientId} = data || {}
@@ -110,10 +134,12 @@ class wsServer {
 			if (isBroadcast) {
 				const msgObj = { emisor, receptor: 'Todos', mensaje, ts: Date.now(), broadcast: true, readBy: [] }
 				if (clientId) msgObj.clientId = clientId
+				console.log("ANTES DE GUARDAR")
 				try {
 					const id = await storage.addMessage(msgObj)
+					console.log("DESPUÉS DE GUARDAR", id)
 					msgObj.id = id
-				} catch (e) { console.error('storage:addMessage', e) }
+				} catch (e) { console.error("ERROR STORAGE:", e) }
 				// ack to sender: sent (include clientId if provided)
 				this.MSG(ws, 'SENT', Object.assign({ id_mensaje: msgObj.id, ts: msgObj.ts }, clientId ? { clientId } : {}))
 				// notify all clients
@@ -134,30 +160,47 @@ class wsServer {
 					const integrantes = Array.isArray(g && g.miembros) ? g.miembros.slice() : (Array.isArray(receptor) ? receptor.slice() : [])
 					const msgObj = { emisor, tipo: 'grupo', grupo: groupName, mensaje, ts: Date.now(), broadcast: false, readBy: [] }
 					if (clientId) msgObj.clientId = clientId
+					console.log("ANTES DE GUARDAR")
 					try {
 						const id = await storage.addMessage(msgObj)
+						console.log("DESPUÉS DE GUARDAR", id)
 						msgObj.id = id
-					} catch (e) { console.error('storage:addMessage', e) }
+					} catch (e) { console.error("ERROR STORAGE:", e) }
 					// ack to sender
 					this.MSG(ws, 'SENT', Object.assign({ id_mensaje: msgObj.id, ts: msgObj.ts }, clientId ? { clientId } : {}))
 					// send to integrantes connected except emisor
-					for (const cliente of this.wss.clients) {
-						if(!cliente || !cliente.data) continue
-						if (String(cliente.data).trim() !== String(emisor).trim() && integrantes.includes(cliente.data)) {
-							this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
-						}
+				const delivered = []
+				for (const cliente of this.wss.clients) {
+					if(!cliente || !cliente.data) continue
+					const cdata = String(cliente.data).trim()
+					if (cdata === String(emisor).trim()) {
 						// ensure sender gets a copy
-						if (cliente.data === emisor) this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
+						this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
+						continue
 					}
-					return
+					if (integrantes.includes(cliente.data)) {
+						this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
+						try {
+							await storage.markDelivered(msgObj.id, cliente.data)
+							delivered.push(cliente.data)
+						} catch (e) { console.error('storage:markDelivered', e) }
+					}
+				}
+				// inform sender about delivered list
+				this.MSG(ws, 'DELIVERED', { id_mensaje: msgObj.id, deliveredTo: delivered })
+				console.log('MENSAJE GRUPO', { grupo: groupName, id: msgObj.id })
+				console.log('ENTREGA GRUPO', { id: msgObj.id, deliveredTo: delivered })
+				return
 				} else {
 					const storedReceptor = Array.isArray(receptor) ? receptor.slice() : receptor
 					const msgObj = { emisor, receptor: storedReceptor, mensaje, ts: Date.now(), broadcast: false, readBy: [] }
 					if (clientId) msgObj.clientId = clientId
+					console.log("ANTES DE GUARDAR")
 					try {
 						const id = await storage.addMessage(msgObj)
+						console.log("DESPUÉS DE GUARDAR", id)
 						msgObj.id = id
-					} catch (e) { console.error('storage:addMessage', e) }
+					} catch (e) { console.error("ERROR STORAGE:", e) }
 					// ack to sender
 					this.MSG(ws, 'SENT', Object.assign({ id_mensaje: msgObj.id, ts: msgObj.ts }, clientId ? { clientId } : {}))
 					for (const cliente of this.wss.clients) {
@@ -190,22 +233,32 @@ class wsServer {
 			}
 			const integrantes = Array.isArray(g.miembros) ? g.miembros.slice() : []
 			const msgObj = { emisor, tipo: 'grupo', grupo: g.nombreGrupo, mensaje, ts: Date.now(), broadcast: false, readBy: [] }
-			const id = await storage.addMessage(msgObj)
-			msgObj.id = id
+			console.log("ANTES DE GUARDAR")
+			try {
+				const id = await storage.addMessage(msgObj)
+				console.log("DESPUÉS DE GUARDAR", id)
+				msgObj.id = id
+			} catch (e) { console.error("ERROR STORAGE:", e) }
 
 			const integrantesNorm = integrantes.map(x => String(x).trim().toLowerCase())
+			const delivered = []
 			for (const cliente of this.wss.clients) {
 				if (!cliente || !cliente.data) continue
 				const cname = String(cliente.data).trim().toLowerCase()
 				if (cname === String(emisor).trim().toLowerCase()) continue
 				if (integrantesNorm.includes(cname)) {
 					this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
+					try { await storage.markDelivered(msgObj.id, cliente.data); delivered.push(cliente.data) } catch(e) { console.error('storage:markDelivered', e) }
 				}
 			}
 			// copia al emisor (incluir clientId si lo recibimos para evitar duplicados locales)
 			const echo = Object.assign({}, msgObj)
 			if (data && data.clientId) echo.clientId = data.clientId
 			this.MSG(ws, 'CHAT', echo)
+			// informar entregas al emisor
+			this.MSG(ws, 'DELIVERED', { id_mensaje: msgObj.id, deliveredTo: delivered })
+			console.log('MENSAJE GRUPO', { grupo: grupo, id: msgObj.id })
+			console.log('ENTREGA GRUPO', { id: msgObj.id, deliveredTo: delivered })
 		} catch (e) { console.error('CHAT_GRUPO error', e) }
 	}
 
@@ -224,6 +277,32 @@ class wsServer {
 			if (!cliente || !cliente.data) continue
 			this.MSG(cliente, 'GRUPOS', grupos)
 		}
+	}
+
+	async GET_CONTACTS(ws, data) {
+		try {
+			const user = ws.data || data
+			if (!user) return this.MSG(ws, 'CONTACTS', [])
+			const contacts = await storage.getContacts(user)
+			this.MSG(ws, 'CONTACTS', contacts)
+		} catch (e) { console.error('GET_CONTACTS error', e); this.MSG(ws, 'CONTACTS', []) }
+	}
+
+	async ADD_CONTACT(ws, data) {
+		try {
+			const usuario = ws.data
+			const contacto = (typeof data === 'string') ? data : (data && (data.contacto || data.username))
+			if (!usuario || !contacto) return this.MSG(ws, 'ERROR', 'Usuario o contacto no especificado')
+			// comprobar si el usuario destino existe
+			const found = await storage.buscarUsuario(contacto)
+			if (!found) return this.MSG(ws, 'ERROR', 'Usuario no encontrado')
+			// crear vínculo doble (no duplicará gracias a unique constraint)
+			await storage.addContact(usuario, contacto)
+			await storage.addContact(contacto, usuario)
+			// responder con lista actualizada al solicitante
+			const contacts = await storage.getContacts(usuario)
+			this.MSG(ws, 'CONTACTS', contacts)
+		} catch (e) { console.error('ADD_CONTACT error', e); this.MSG(ws, 'ERROR', 'No se pudo agregar contacto') }
 	}
 
 	//

@@ -3,6 +3,9 @@ html, body, #root {
   margin: 0;
 }
 
+/* Evitar scroll horizontal global */
+html, body, #root { overflow-x: hidden; }
+
 body {
   background: linear-gradient(135deg, #f5f7fb, #e9eef6);
   font-family: 'Inter', 'Segoe UI', sans-serif;
@@ -31,7 +34,7 @@ body {
 .phone {
   width: 95%;
   max-width: 1100px;
-  height: 90vh;
+  height: 100vh;
   background: linear-gradient(180deg, var(--card), #fbfdff);
   border-radius: 24px;
   display: flex;
@@ -60,8 +63,8 @@ body {
 }
 
 .sidebar {
-  width: 280px;
-  min-width: 220px;
+  width: 320px;
+  min-width: 320px;
   max-width: 380px;
   resize: horizontal;
   overflow: auto;
@@ -102,6 +105,9 @@ body {
   box-shadow: 0 12px 34px rgba(51,153,255,0.12);
   transition: transform .18s ease, box-shadow .18s ease, opacity .12s ease;
 }
+.sidebar .btn { width: 100%; display: block; }
+/* Specific style for add contact button */
+.add-contact-btn { width:100%; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:700 }
 .connection .btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 18px 46px rgba(51,153,255,0.16);
@@ -217,23 +223,29 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
   padding: 10px 12px;
   border-radius: 12px;
   cursor: pointer;
-  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+  transition: transform .2s ease, background .2s ease, box-shadow .2s ease;
 }
 
 .user-item:hover {
-  background: #f7fbff;
-  transform: translateX(4px);
+  background: #f7f8fc;
+  transform: translateX(2px);
   box-shadow: 0 6px 16px rgba(13,38,76,0.03);
 }
 
 .user-item.selected {
-  background: #e8f2ff;
+  background: #eef4ff;
 }
+
+.user-item:active { transform: scale(.98) }
+
+.user-item.compact { padding: 10px }
 
 .sidebar ul {
   list-style: none;
   padding: 0;
   margin: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 
 .avatar {
@@ -250,6 +262,8 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
   border: 2px solid rgba(51,153,255,0.08);
 }
 
+.avatar.small { width:36px; height:36px }
+
 .meta {
   display: flex;
   flex-direction: column;
@@ -257,12 +271,29 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
 
 .meta .name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .meta .sub {
-  font-size: 13px;
+  font-size: 11px;
   color: #888;
+}
+
+.small-name { font-size:14px }
+.small-sub { font-size:11px }
+
+.unread-badge {
+  background: #ff3b30;
+  color: white;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .dot {
@@ -286,7 +317,11 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
   background: linear-gradient(to bottom, var(--bg-soft), #f8fbff);
   box-shadow: inset 0 1px 0 rgba(0,0,0,0.03);
   padding-left: 8px;
+  height: 100%;
 }
+
+/* asegurar que el layout principal ocupe toda la altura */
+.phone-main { display: flex; flex: 1 1 auto; min-height: 0; }
 
 .chat-header {
   padding: 8px 16px;
@@ -296,6 +331,10 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
   display:flex;
   align-items:center;
   gap:12px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
 }
 
 .chat-header .menu-wrapper { margin-left: auto }
@@ -306,7 +345,7 @@ input:focus, textarea:focus { box-shadow: 0 10px 30px rgba(30,112,255,0.06) !imp
 
 
 .messages {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
   padding: 28px 20px 120px 20px;
   display: flex;

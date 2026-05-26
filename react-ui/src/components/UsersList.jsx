@@ -1,36 +1,11 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {} }) {
-  const [selectionMode, setSelectionMode] = useState(false)
+export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
-  const [selectedMembers, setSelectedMembers] = useState([])
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
 
-  const toggleMember = (u) => {
-    setSelectedMembers(s => s.includes(u) ? s.filter(x => x !== u) : [...s, u])
-  }
-
-  const handleCreateGroup = () => {
-    const nombre = String(prompt('Nombre del grupo:') || '').trim()
-    if (!nombre) return
-    // incluir los miembros seleccionados
-    const miembros = selectedMembers.slice()
-    // Asegurar que el creador esté incluido
-    if (!miembros.includes(usuarioActual)) miembros.push(usuarioActual)
-    if (miembros.length === 0) {
-      alert('Selecciona al menos un miembro para el grupo')
-      return
-    }
-    // enviar evento al servidor a través de la prop onCreateGroup
-    if (typeof onCreateGroup === 'function') {
-      onCreateGroup(nombre, miembros)
-    } else if (typeof window.__onCreateGroup === 'function') {
-      window.__onCreateGroup(nombre, miembros)
-    }
-    setSelectionMode(false)
-    setSelectedMembers([])
-  }
+  // Create group now handled by parent modal; onOpenCreateGroup prop triggers modal
   // helper: obtener último mensaje entre usuarioActual y target
   const lastFor = (target) => {
     if (!mensajes || mensajes.length === 0) return null
@@ -68,29 +43,17 @@ export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usu
     }
   }, [usuarioSeleccionado, usuarioActual, onSelect])
 
+  // contactsMap from IndexedDB removed: do not use IndexedDB for contacts
+
   useEffect(() => {
-    // intentar leer contactos desde IndexedDB si está disponible
-    let mounted = true
-    const load = async () => {
-      try {
-        if (window && window.chatDB && typeof window.chatDB.getAllContacts === 'function') {
-          const list = await window.chatDB.getAllContacts()
-          if (!mounted) return
-          const map = {}
-          for (const c of list) map[c.id] = c
-          setContactsMap(map)
-        }
-      } catch (e) { console.error('Error cargando contactos desde IndexedDB', e) }
-    }
-    load()
-    return () => { mounted = false }
-  }, [usuarios])
+    console.log('USER', usuarioActual)
+    console.log('GROUPS USER', groups)
+  }, [usuarioActual, groups])
 
   return (
     <aside className="users sidebar">
       <div style={{display:'flex', gap:8, alignItems:'center'}}>
-        <button className="btn" onClick={() => setSelectionMode(s => !s)}>{selectionMode ? 'Cancelar' : 'Crear grupo'}</button>
-        {selectionMode && <button className="btn" onClick={handleCreateGroup}>Crear</button>}
+        <button className="btn" onClick={() => { if (typeof onOpenCreateGroup === 'function') onOpenCreateGroup(); else if (typeof onCreateGroup === 'function') onCreateGroup() }}>Crear grupo</button>
       </div>
       <div className="tabs">
         <button className={`tab ${activeTab === 'todos' ? 'active' : ''}`} onClick={() => { setActiveTab('todos'); onSelect('Todos') }}>Todos</button>
@@ -145,10 +108,7 @@ export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usu
               key={`${u}-${i}`}
               className={usuarioSeleccionado === u ? 'selected' : ''}
             >
-              <div className="user-item" onClick={() => { if (!selectionMode) onSelect(u); else toggleMember(u) }}>
-                {selectionMode && (
-                  <input type="checkbox" checked={selectedMembers.includes(u)} onChange={() => toggleMember(u)} />
-                )}
+              <div className="user-item" onClick={() => onSelect(u)}>
                 <div className="avatar">{String(u).charAt(0).toUpperCase()}</div>
                 <div className="meta">
                   <div className="name">{u}</div>

@@ -6,7 +6,12 @@ export default function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [usuarios, setUsuarios] = useState([])
   const [groups, setGroups] = useState([])
+  // per-user maps to avoid cross-user clobbering
+  const [contactsByUser, setContactsByUser] = useState({})
+  const [groupsByUser, setGroupsByUser] = useState({})
+  const [contacts, setContacts] = useState([]) // visible contacts for current user
   const [messages, setMessages] = useState([])
+  const [dbReady, setDbReady] = useState(false)
 
   const dbRef = useRef(null)
   const usernameRef = useRef(null)
@@ -15,7 +20,26 @@ export default function useWebSocket() {
 
   // helper para ejecutar promesas sin await en handlers sincrónicos
   const fire = (p) => { if (!p) return; if (p.then) p.catch(e => console.error('Promise error (fire):', e)) }
+  // helper para ejecutar promesas sin await en handlers sincrónicos
+  // (nota: la variable 'user' no existe aquí; las referencias a 'user' aparecen sólo en handlers)
 
+  const setContactsForCurrent = (current, arr) => {
+    if (!current) return
+    setContactsByUser(prev => ({ ...(prev || {}), [current]: Array.isArray(arr) ? arr : [] }))
+    setContacts(Array.isArray(arr) ? arr : [])
+    console.log('USER', current)
+    console.log('CONTACTS USER', { ...(contactsByUser || {}), [current]: arr })
+  }
+
+  const setGroupsForCurrent = (current, arr) => {
+    if (!current) return
+    setGroupsByUser(prev => ({ ...(prev || {}), [current]: Array.isArray(arr) ? arr : [] }))
+    setGroups(Array.isArray(arr) ? arr : [])
+    console.log('USER', current)
+    console.log('GROUPS USER', { ...(groupsByUser || {}), [current]: arr })
+  }
+
+  // Initialize IndexedDB wrapper for messages/groups (not contacts)
   useEffect(() => {
     let mounted = true
     const initDB = async () => {
@@ -24,8 +48,8 @@ export default function useWebSocket() {
         await db.init()
         if (!mounted) return
         dbRef.current = db
+        setDbReady(true)
         try { window.chatDB = dbRef.current } catch (e) {}
-        console.log('IndexedDB inicializada y lista (window.chatDB)')
       } catch (err) {
         console.error('No se pudo inicializar IndexedDB:', err)
       }
@@ -39,6 +63,10 @@ export default function useWebSocket() {
   }
 
   const norm = (s) => (s || '').toString().trim().toLowerCase()
+
+  useEffect(() => {
+    console.log('CONTACTOS ACTUALIZADOS:', contacts)
+  }, [contacts])
 
   const connect = useCallback((username, url = 'wss://chat-server-production-1abc.up.railway.app') => {
     if (!username) return
@@ -57,14 +85,15 @@ export default function useWebSocket() {
       // send identification and ask for connected list (send original display name)
       ws.send(JSON.stringify({ mensaje: 'IDENTIFICACION', data: usernameTrim }))
       ws.send(JSON.stringify({ mensaje: 'CONECTADOS' }))
+      // request server-side contacts for this user
+      ws.send(JSON.stringify({ mensaje: 'GET_CONTACTS', data: usernameTrim }))
 
-      // register contact locally (do NOT persist presence flags) using normalized id
-      try { if (dbRef.current) fire(dbRef.current.upsertContact({ id: usernameNorm, nombre: usernameTrim, lastSeen: Date.now() })) } catch (e) { console.error(e) }
+      // do NOT persist contacts in IndexedDB
       // seed groups from local DB so user's groups appear immediately
       ;(async () => {
         try {
-          if (dbRef.current && username) {
-            const allGroups = await dbRef.current.getAll()
+            if (dbRef.current && username) {
+            const allGroups = await dbRef.current.getGroups()
             const visible = Array.isArray(allGroups) ? allGroups.filter(g => {
               const miembros = Array.isArray(g.integrantes) ? g.integrantes : []
               const miembrosNorm = miembros.map(x => String(x).trim().toLowerCase())
@@ -72,7 +101,7 @@ export default function useWebSocket() {
             }) : []
             const names = visible.map(g => g.id)
             if (names.length) {
-              setGroups(names)
+              setGroupsForCurrent(usernameNorm, Array.from(names))
             }
           }
         } catch (e) { /* no-op */ }
@@ -127,21 +156,132 @@ export default function useWebSocket() {
           } catch (e) {}
           return [...prev, item]
         })
+            try {
+              if (dbRef.current) {
+                // ensure group exists in local groups store
+                try { dbRef.current.add(item.grupo, []).catch(()=>{}) } catch(e){}
+                // DO NOT persist contacts into IndexedDB (groups are handled separately)
+                dbRef.current.addMessage(item)
+              }
+            } catch (e) { console.error('Error guardando mensaje grupal recibido', e) }
+        // ensure UI knows about this group (only for current user)
         try {
-          if (dbRef.current) {
-            // ensure group exists in local groups store
-            try { dbRef.current.add(item.grupo, []).catch(()=>{}) } catch(e){}
-            // upsert contact entry for the group (type: 'group') for UI recognition
-            try { dbRef.current.upsertContact({ id: (item.grupo||'').toString().trim().toLowerCase(), nombre: item.grupo, type: 'group' }).catch(()=>{}) } catch(e){}
-            dbRef.current.addMessage(item)
+          const current = usernameRef.current
+          if (current) {
+            const existing = Array.isArray(groupsByUser[current]) ? groupsByUser[current] : Array.isArray(groups) ? groups : []
+            const newList = Array.from(new Set([...(existing||[]), item.grupo]))
+            setGroupsForCurrent(current, newList)
           }
-        } catch (e) { console.error('Error guardando mensaje grupal recibido', e) }
-        // ensure UI knows about this group
-        try { setGroups(prev => Array.from(new Set([...(prev||[]), item.grupo]))) } catch (e) {}
+        } catch (e) {}
         return
       }
 
       const { mensaje, data } = p
+
+      // Nuevo: manejo de CONTACTS (lista de contactos ricos) y STATUS (cambios de presencia)
+      if (mensaje === 'CONTACTS') {
+        try {
+          const arr = Array.isArray(data) ? data : []
+          const normalized = arr.map(c => {
+            if (!c) return null
+            if (typeof c === 'string') return { username: c, online: false, last_seen: null }
+            return { username: c.username || c.nombre || c.name || (c.id || ''), online: !!c.online, last_seen: c.last_seen || c.lastSeen || null }
+          }).filter(Boolean)
+          
+          const current = usernameRef.current
+              // exclude self
+              const filtered = normalized.filter(c => norm(c.username) !== (usernameRef.current || ''))
+              setContactsForCurrent(current, Array.from(filtered))
+              console.log('CONTACTS', filtered)
+        } catch (e) { console.error('Error procesando CONTACTS', e) }
+        return
+      }
+
+      if (mensaje === 'STATUS') {
+        try {
+          console.log('STATUS:', data)
+          const user = data && (data.user || data.usuario) ? (data.user || data.usuario) : (typeof data === 'string' ? data : null)
+          const online = data && typeof data.online !== 'undefined' ? !!data.online : Boolean(data)
+          const lastSeen = data && (data.last_seen || data.lastSeen) ? data.last_seen || data.lastSeen : null
+
+          if (user) {
+            const current = usernameRef.current
+            if (current) {
+              // Update per-user contacts map immutably
+              setContactsByUser(prev => {
+                const copy = Object.assign({}, prev || {})
+                const list = Array.isArray(copy[current]) ? copy[current].slice() : []
+                let found = false
+                const updatedList = list.map(c => {
+                  try {
+                    if (norm(c.username) === norm(user)) {
+                      found = true
+                      return Object.assign({}, c, { online, last_seen: lastSeen ?? (online ? c.last_seen : null) })
+                    }
+                  } catch (e) {}
+                  return c
+                })
+                if (!found) {
+                  // add minimal contact entry if not present
+                  updatedList.push({ username: user, online, last_seen: lastSeen })
+                }
+                copy[current] = updatedList
+                // update visible contacts immutably
+                setContacts(prevContacts => {
+                  if (!Array.isArray(prevContacts)) return updatedList
+                  const has = prevContacts.some(pc => norm(pc.username) === norm(user))
+                  if (!has) return [...prevContacts, { username: user, online, last_seen: lastSeen }]
+                  return prevContacts.map(pc => norm(pc.username) === norm(user) ? Object.assign({}, pc, { online, last_seen: lastSeen }) : pc)
+                })
+                console.log('CONTACTS (byUser):', copy[current])
+                return copy
+              })
+            }
+            // Do NOT persist contacts/lastSeen in IndexedDB
+            setUsuarios(prev => {
+              const set = new Set(Array.isArray(prev) ? prev : [])
+              set.add(user)
+              return Array.from(set)
+            })
+          }
+        } catch (e) { console.error('Error procesando STATUS', e) }
+        return
+      }
+
+        if (mensaje === 'HISTORIAL') {
+        try {
+          if (Array.isArray(data) && data.length) {
+            setMessages(prev => {
+              const existentes = new Set(prev.map(m => m.id ?? `${m.ts}-${m.emisor}-${m.mensaje}`))
+              const nuevos = []
+              for (const it of data) {
+                const id = it.id ?? null
+                const key = id ?? `${it.ts}-${it.emisor}-${it.mensaje}`
+                if (existentes.has(key)) continue
+                existentes.add(key)
+                const item = Object.assign({}, {
+                  id: it.id || null,
+                  emisor: it.emisor || null,
+                  receptor: it.receptor || it.receptor || null,
+                  tipo: it.tipo || (it.grupo ? 'grupo' : 'privado'),
+                  grupo: it.grupo || null,
+                  mensaje: it.mensaje || it.contenido || '',
+                  ts: it.ts || it.enviado_at || Date.now(),
+                  leido: !!it.leido,
+                  status: 'received',
+                  readBy: Array.isArray(it.readBy) ? it.readBy.slice() : (it.readBy || [])
+                })
+                try { item.emisorNorm = (item.emisor || '').toString().trim().toLowerCase() } catch(e){}
+                nuevos.push(item)
+              }
+              const updated = [...prev, ...nuevos]
+              
+              return updated
+            })
+          }
+        } catch (e) { console.error('Error procesando HISTORIAL', e) }
+        return
+      }
 
       // Ensure pending CHAT messages received on IDENTIFICACION are added to state
       if (mensaje === 'CHAT' && data) {
@@ -153,7 +293,7 @@ export default function useWebSocket() {
           setMessages(prev => (prev.some(x => (x.id || x.localId) === id) ? prev : [...prev, item]))
           try {
             if (dbRef.current) {
-              try { dbRef.current.upsertContact({ id: (incoming.emisor||'').toString().trim().toLowerCase(), nombre: incoming.emisor }).catch(()=>{}) } catch(e){}
+              // do NOT persist contacts in IndexedDB
               try { dbRef.current.addMessage(item).catch(()=>{}) } catch(e){}
             }
           } catch (e) {}
@@ -194,10 +334,10 @@ export default function useWebSocket() {
             const name = (typeof u === 'string' ? u : (u.nombre || u.name || u.id || '')).toString()
             const key = norm(name)
             if (!map.has(key)) map.set(key, name)
-            try { if (dbRef.current) fire(dbRef.current.upsertContact({ id: key, nombre: name, lastSeen: Date.now() })) } catch (e) {}
           }
           const names = Array.from(map.values())
           setUsuarios(names)
+          console.log('USERS', names)
         } else setUsuarios([])
         return
       }
@@ -211,7 +351,8 @@ export default function useWebSocket() {
         }) : []
 
         const names = visible.map(g => (g.nombreGrupo || g.nombre || '').toString().trim())
-        setGroups(names)
+        setGroupsForCurrent(current, Array.from(names))
+        console.log('GROUPS', names)
 
         try {
           if (Array.isArray(visible)) {
@@ -222,20 +363,40 @@ export default function useWebSocket() {
                 await new Promise(r => setTimeout(r, 100))
               }
               if (!dbRef.current) return
-              const existing = await dbRef.current.getAll()
-              const existingNames = existing.map(e => e.id)
+              // persist groups separately (will clear and rewrite)
+              try { await dbRef.current.saveGroups(visible) } catch (e) {}
+              // upsert members into contacts store (members only)
               for (const g of visible) {
-                const nombre = (g.nombreGrupo || g.nombre || '').toString().trim()
                 const integrantes = Array.isArray(g.miembros) ? g.miembros.map(x => String(x).trim()) : []
-                if (!existingNames.includes(nombre)) await dbRef.current.add(nombre, integrantes)
-                // marcar el grupo también como contacto de tipo 'group' para diferenciación en la UI
-                try { fire(dbRef.current.upsertContact({ id: nombre, nombre, type: 'group' })) } catch (e) {}
-                for (const m of integrantes) fire(dbRef.current.upsertContact({ id: m, nombre: m }))
+                // do NOT persist integrantes as contacts in IndexedDB
+                for (const m of integrantes) { /* noop */ }
               }
             }
             save().catch(e => console.error('Error guardando grupos/miembros en IndexedDB', e))
           }
         } catch (e) { console.error(e) }
+        return
+      }
+
+      if (mensaje === 'PENDING') {
+        try {
+          const msgs = data && Array.isArray(data.messages) ? data.messages : (data && data.messages ? [data.messages] : [])
+          for (const it of msgs) {
+            const item = Object.assign({}, {
+              id: it.id || it.id_mensaje || null,
+              emisor: it.emisor || null,
+              tipo: it.tipo || (it.grupo ? 'grupo' : 'privado'),
+              grupo: it.grupo || null,
+              mensaje: it.mensaje || it.contenido || '',
+              ts: it.ts || it.enviado_at || Date.now(),
+              leido: false,
+              status: 'received'
+            })
+            try { item.emisorNorm = (item.emisor || '').toString().trim().toLowerCase() } catch(e){}
+            setMessages(prev => (prev.some(x => x.id === item.id) ? prev : [...prev, item]))
+            try { if (dbRef.current) dbRef.current.addMessage(item).catch(()=>{}) } catch(e){}
+          }
+        } catch (e) { console.error('Error procesando PENDING', e) }
         return
       }
 
@@ -246,7 +407,6 @@ export default function useWebSocket() {
             const name = (typeof u === 'string' ? u : (u.nombre || u.name || u.id || '')).toString()
             const key = norm(name)
             if (!map.has(key)) map.set(key, name)
-            try { if (dbRef.current) fire(dbRef.current.upsertContact({ id: key, nombre: name, lastSeen: Date.now() })) } catch (e) {}
           }
           const names = Array.from(new Set([...(Array.from(map.values())), ...(Array.isArray(usuarios) ? usuarios : [])]))
           setUsuarios(names)
@@ -264,7 +424,7 @@ export default function useWebSocket() {
             const idE = data.emisor.id || data.emisor.nombre || data.emisor.name
             const name = (data.emisor.nombre || data.emisor.name || idE || '').toString()
             const idNorm = norm(name)
-            if (dbRef.current) fire(dbRef.current.upsertContact({ id: idNorm, nombre: name }))
+            // do NOT persist contacts in IndexedDB
             data.emisorId = idNorm
             data.emisor = name
           }
@@ -323,8 +483,15 @@ export default function useWebSocket() {
           if (dbRef.current) {
             if (item.tipo === 'grupo' || item.grupo) {
               try { dbRef.current.add(item.grupo, []).catch(()=>{}) } catch(e){}
-              try { dbRef.current.upsertContact({ id: (item.grupo||'').toString().trim().toLowerCase(), nombre: item.grupo, type: 'group' }).catch(()=>{}) } catch(e){}
-              try { setGroups(prev => Array.from(new Set([...(prev||[]), item.grupo]))) } catch (e) {}
+              // do NOT persist group as a contact in IndexedDB
+              try {
+                const current = usernameRef.current
+                if (current) {
+                  const existing = Array.isArray(groupsByUser[current]) ? groupsByUser[current] : Array.isArray(groups) ? groups : []
+                  const newList = Array.from(new Set([...(existing||[]), item.grupo]))
+                  setGroupsForCurrent(current, newList)
+                }
+              } catch (e) {}
             }
             dbRef.current.addMessage(item)
           }
@@ -357,8 +524,13 @@ export default function useWebSocket() {
           const integrantes = Array.isArray(data && data.miembros) ? (data.miembros.map(x => String(x).trim())) : []
           const nombre = (data && (data.nombreGrupo || data.nombre) ? (data.nombreGrupo || data.nombre) : JSON.stringify(data)).toString().trim()
           if (current && integrantes.includes(String(current).trim())) {
-            if (dbRef.current) dbRef.current.add(nombre, integrantes).then(id => console.log('Grupo guardado en IndexedDB con id', id)).catch(err => console.error('Error guardando grupo:', err))
-            setGroups((prev) => Array.from(new Set([...(prev||[]), nombre])))
+            if (dbRef.current) dbRef.current.add(nombre, integrantes).catch(err => console.error('Error guardando grupo:', err))
+            const current = usernameRef.current
+            if (current) {
+              const existing = Array.isArray(groupsByUser[current]) ? groupsByUser[current] : Array.isArray(groups) ? groups : []
+              const newList = Array.from(new Set([...(existing||[]), nombre]))
+              setGroupsForCurrent(current, newList)
+            }
           }
         } catch (e) { console.error(e) }
         return
@@ -368,7 +540,7 @@ export default function useWebSocket() {
     ws.onclose = () => {
       setConnected(false)
       setUsuarios([])
-      try { if (dbRef.current && usernameRef.current) fire(dbRef.current.upsertContact({ id: usernameRef.current, nombre: usernameRef.current, lastSeen: Date.now() })) } catch (e) {}
+      // do NOT persist contacts in IndexedDB on close
     }
 
     ws.onerror = () => {
@@ -469,7 +641,15 @@ export default function useWebSocket() {
       // delete local messages for that group
       await dbRef.current.deleteMessagesByGroup(grupo)
       // update UI state: remove group from visible groups and remove messages
-      setGroups(prev => (Array.isArray(prev) ? prev.filter(g => g !== grupo) : []))
+      // update only current user's groups
+      setGroupsByUser(prev => {
+        const copy = Object.assign({}, prev || {})
+        const list = Array.isArray(copy[me]) ? copy[me].filter(g => g !== grupo) : []
+        copy[me] = list
+        return copy
+      })
+      // refresh visible groups for current user
+      if (usernameRef.current) setGroups(groupsByUser[usernameRef.current] || [])
       setMessages(prev => (Array.isArray(prev) ? prev.filter(m => !(m.tipo === 'grupo' && m.grupo === grupo)) : []))
       return true
     } catch (e) { console.error('leaveGroup error', e); return false }
@@ -486,15 +666,59 @@ export default function useWebSocket() {
     } catch (e) { console.error('deleteContact error', e); return false }
   }, [])
 
+  const addContact = useCallback(async (username) => {
+    if (!username) return false
+    const uname = (username || '').toString().trim()
+    const id = norm(uname)
+    // update local state
+    const me = usernameRef.current
+    if (me) {
+      setContactsByUser(prev => {
+        const copy = Object.assign({}, prev || {})
+        const list = Array.isArray(copy[me]) ? copy[me].slice() : (Array.isArray(contacts) ? contacts.slice() : [])
+        if (list.find(c => norm(c.username) === id)) return copy
+        list.push({ username: uname, online: false, last_seen: null })
+        copy[me] = list
+        return copy
+      })
+      setContacts(prev => {
+        const list = Array.isArray(prev) ? prev.slice() : []
+        if (list.find(c => norm(c.username) === id)) return prev
+        return [...list, { username: uname, online: false, last_seen: null }]
+      })
+    }
+
+    // If connected, ask server to add contact (will validate existence and create mutual links)
+    try {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ mensaje: 'ADD_CONTACT', data: uname }))
+        return true
+      }
+    } catch (e) { console.error('Error sending ADD_CONTACT', e) }
+
+    // fallback: local-only
+    return true
+  }, [])
+
   const renameGroup = useCallback(async (oldName, newName) => {
     try {
       if (!dbRef.current || !oldName || !newName) return false
       await dbRef.current.renameGroup(oldName, newName)
       // update UI state
-      setGroups(prev => Array.isArray(prev) ? prev.map(g => g === oldName ? newName : g) : prev)
+      // update only current user's groups
+      const me = usernameRef.current
+      if (me) {
+        setGroupsByUser(prev => {
+          const copy = Object.assign({}, prev || {})
+          const list = Array.isArray(copy[me]) ? copy[me].map(g => g === oldName ? newName : g) : []
+          copy[me] = list
+          return copy
+        })
+        setGroups(prev => Array.isArray(prev) ? prev.map(g => g === oldName ? newName : g) : prev)
+      }
       setMessages(prev => Array.isArray(prev) ? prev.map(m => (m && m.tipo === 'grupo' && m.grupo === oldName) ? Object.assign({}, m, { grupo: newName, grupoNorm: norm(newName) }) : m) : prev)
       // upsert contact entry for new group id
-      try { if (dbRef.current) fire(dbRef.current.upsertContact({ id: (newName||'').toString().trim().toLowerCase(), nombre: newName, type: 'group' })) } catch (e) {}
+      // do NOT persist contacts in IndexedDB for group rename
       // remove old group contact entry if exists
       try { if (dbRef.current) fire(dbRef.current.deleteContact((oldName||'').toString().trim().toLowerCase())) } catch (e) {}
       return true
@@ -524,5 +748,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, connected, usuarios, groups, messages }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, usuarios, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+
 }
