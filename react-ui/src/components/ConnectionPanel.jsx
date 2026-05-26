@@ -1,5 +1,7 @@
 import React from 'react'
 
+const WS_URL = import.meta.env.VITE_WS_URL || "wss://chat-server-production-1abc.up.railway.app"
+
 export default function ConnectionPanel({ username, onChangeUsername, url, onChangeUrl, onConnect, onDisconnect, connected }) {
   const nombreValido = String(username || '').trim().length > 0
 
@@ -9,7 +11,7 @@ export default function ConnectionPanel({ username, onChangeUsername, url, onCha
       <input value={username} onChange={(e) => onChangeUsername(e.target.value)} />
 
       <label>WebSocket URL</label>
-      <input value={url} onChange={(e) => onChangeUrl(e.target.value)} placeholder="ws://localhost:8083" />
+      <input value={url} onChange={(e) => onChangeUrl(e.target.value)} placeholder={WS_URL} />
 
       {!connected ? (
         <button onClick={() => onConnect(String(username).trim(), String(url).trim())} className="btn" disabled={!nombreValido}>Conectar</button>

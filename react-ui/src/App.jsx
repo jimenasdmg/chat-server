@@ -8,8 +8,9 @@ import AddContactModal from './components/AddContactModal'
 import CreateGroupModal from './components/CreateGroupModal'
 
 export default function App() {
+  const WS_URL = import.meta.env.VITE_WS_URL || "wss://chat-server-production-1abc.up.railway.app"
   const [username, setUsername] = useState('')
-  const [wsUrl, setWsUrl] = useState('ws://localhost:8083')
+  const [wsUrl, setWsUrl] = useState(WS_URL)
   const [usuarioActual, setUsuarioActual] = useState('')
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState('Todos')
   const [unread, setUnread] = useState({})
