@@ -4,7 +4,7 @@ class wsCliente {
 	constructor(cliente) {
 		// Modo: si se pasa --no-central o --solo-ui, no intentamos conectar al servidor central
 		this.noCentral = process.argv.includes('--no-central') || process.argv.includes('--solo-ui')
-		this.serverUrl = 'ws://localhost:8083'
+		this.serverUrl = 'wss://chat-server-production-1abc.up.railway.app'
 		this.reconnectDelay = 5000
 		this.reconnectTimer = null
 		if (!this.noCentral) this.connectToCentral(this.serverUrl)

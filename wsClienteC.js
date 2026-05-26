@@ -1,7 +1,7 @@
 import WebSocket from 'ws'
 
 export class wsCliente {
-	constructor(url = 'ws://localhost:8083', nombre = 'Jimena Del Moral García', curp = 'MOGJ040804MVZRRMA8') {
+	constructor(url = 'wss://chat-server-production-1abc.up.railway.app', nombre = 'Jimena Del Moral García', curp = 'MOGJ040804MVZRRMA8') {
 		this.url = url
 		this.nombre = nombre
 		this.curp = curp
@@ -55,5 +55,5 @@ export class wsCliente {
 }
 
 // Cambia 'Tu Nombre' y 'TU_CURP' por tus datos reales si quieres que se envíen.
-const cliente = new wsCliente('ws://localhost:8083', 'Jimena Del Moral García', 'MOGJ040804MVZRRMA8')
+const cliente = new wsCliente('wss://chat-server-production-1abc.up.railway.app', 'Jimena Del Moral García', 'MOGJ040804MVZRRMA8')
 cliente.connect()

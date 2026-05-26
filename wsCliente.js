@@ -5,7 +5,7 @@ import WebSocket from 'ws'
  * INICIALIZACIÓN: Se intenta abrir una conexión con el servidor.
  * El objeto 'ws' se convierte en un Emisor de Eventos (EventEmitter).
  */
-const ws = new WebSocket('ws://localhost:8083')
+const ws = new WebSocket('wss://chat-server-production-1abc.up.railway.app')
 
 // EVENTO 'open': Se dispara una única vez cuando el "handshake" (saludo)
 // con el servidor es exitoso y el túnel de comunicación queda abierto.

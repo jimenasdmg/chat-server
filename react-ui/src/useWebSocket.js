@@ -40,7 +40,7 @@ export default function useWebSocket() {
 
   const norm = (s) => (s || '').toString().trim().toLowerCase()
 
-  const connect = useCallback((username, url = 'ws://localhost:8083') => {
+  const connect = useCallback((username, url = 'wss://chat-server-production-1abc.up.railway.app') => {
     if (!username) return
     if (!url) return
     if (wsRef.current) wsRef.current.close()

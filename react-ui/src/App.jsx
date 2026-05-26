@@ -6,7 +6,7 @@ import ChatWindow from './components/ChatWindow'
 
 export default function App() {
   const [username, setUsername] = useState('')
-  const [wsUrl, setWsUrl] = useState('ws://localhost:8083')
+  const [wsUrl, setWsUrl] = useState('wss://chat-server-production-1abc.up.railway.app')
   const [usuarioActual, setUsuarioActual] = useState('')
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState('Todos')
   const [unread, setUnread] = useState({})
@@ -51,7 +51,7 @@ export default function App() {
 
   const handleConnect = (name, url) => {
     const n = String(name || '').trim()
-    const u = String(url || '').trim() || 'ws://localhost:8083'
+    const u = String(url || '').trim() || 'wss://chat-server-production-1abc.up.railway.app'
     if (!n) return
     setUsername(n)
     setUsuarioActual(n)

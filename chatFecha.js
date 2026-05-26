@@ -2,7 +2,7 @@ import WebSocket from 'ws'
 
 class wsCliente {
 	constructor(emisor, receptor) {
-		this.ws = new WebSocket('ws://localhost:8083')
+		this.ws = new WebSocket('wss://chat-server-production-1abc.up.railway.app')
 		this.conectados = [] // Se actualiza en el mensaje CONECTADOS
 		this.ws.data = emisor // Línea de comandos
 		this.receptor = receptor // Línea de comandos

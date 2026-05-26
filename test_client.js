@@ -1,6 +1,6 @@
 import WebSocket from 'ws'
 
-const url = 'ws://localhost:8083'
+const url = 'wss://chat-server-production-1abc.up.railway.app'
 const ws = new WebSocket(url)
 
 ws.on('open', () => {

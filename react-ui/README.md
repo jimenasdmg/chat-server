@@ -16,4 +16,4 @@ npm install
 npm run dev
 ```
 
-La UI asume que el servidor WebSocket corre en `ws://localhost:8083` y sigue el protocolo JSON `{ mensaje, data }` similar al cliente existente en el proyecto.
+La UI asume que el servidor WebSocket corre en `wss://chat-server-production-1abc.up.railway.app` y sigue el protocolo JSON `{ mensaje, data }` similar al cliente existente en el proyecto.
