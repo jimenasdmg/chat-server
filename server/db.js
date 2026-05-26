@@ -1,10 +1,22 @@
 import mysql from "mysql2/promise";
 
-export const db = await mysql.createConnection({
-    host: "localhost",
-    user: "root",
-    password: "040804",
-    database: "chat_app"
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DB_USER:", process.env.DB_USER);
+console.log("DB_NAME:", process.env.DB_NAME);
+
+const db = mysql.createPool({
+    host: process.env.DB_HOST,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    port: parseInt(process.env.DB_PORT || "3306"),
+
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
-console.log("MariaDB conectada");
+console.log("Pool MySQL creado");
+
+export default db;
+export { db };

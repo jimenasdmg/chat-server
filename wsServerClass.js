@@ -10,8 +10,9 @@ await storage.init()
 
 class wsServer {
 	constructor() {
-		this.wss = new WebSocketServer({ port: 8083 })
-		console.log("Servidor WebSocket iniciado en ws://localhost:8083")
+		const PORT = Number(process.env.PORT || 8083)
+		this.wss = new WebSocketServer({ port: PORT })
+		console.log(`Servidor WebSocket iniciado en ws://0.0.0.0:${PORT}`)
 
 		// Un cliente se conecta
 		this.wss.on('connection', (ws) => {

@@ -8,9 +8,10 @@ const DB_FILE = path.join(process.cwd(), 'server_data.json')
 
 await storage.init()
 // Instancia el servidor: wss es un "EventEmitter" (Emisor de Eventos)
-const wss = new WebSocketServer({ port: 8083 })
+const PORT = Number(process.env.PORT || 8083)
+const wss = new WebSocketServer({ port: PORT })
 
-console.log("Servidor WebSocket iniciado en ws://localhost:8083")
+console.log(`Servidor WebSocket iniciado en ws://0.0.0.0:${PORT}`)
 
 // Lista global de clientes (almacena las instancias ws)
 let clientes = []
