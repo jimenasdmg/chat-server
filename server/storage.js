@@ -177,40 +177,28 @@ const storage = {
         }
       }
 
-      // DESPUÉS de crear recipients
+      // Crear contactos automáticos SI existe receptor
       if (
-        tipo==="privado"
+        emisorId &&
+        receptorId &&
+        !grupoId
       ){
-        const targets=
-        Array.isArray(msg.receptor)
-        ? msg.receptor
-        : [msg.receptor]
+       console.log(
+        "AUTO CONTACTO",
+        emisorId,
+        receptorId,
+        tipo
+       )
 
-        for(const t of targets){
+       await this.addContact(
+        emisorId,
+        receptorId
+       )
 
-          const [rows]=await db.execute(
-           "SELECT id FROM usuarios WHERE username=?",
-           [t]
-          )
-
-          if(rows.length){
-
-            await this.addContact(
-             emisorId,
-             rows[0].id
-            )
-
-            await this.addContact(
-             rows[0].id,
-             emisorId
-            )
-
-          }
-        }
-
-        console.log(
-         "CONTACTOS AUTO OK"
-        )
+       await this.addContact(
+        receptorId,
+        emisorId
+       )
       }
 
       console.log("MENSAJE GUARDADO", id)
