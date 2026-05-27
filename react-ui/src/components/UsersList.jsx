@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ users: usersProp = [], usuarios, usuariosInfo = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
+export default function UsersList({ users: usersProp = [], usuarios, usuariosInfo = {}, status = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
@@ -54,6 +54,11 @@ export default function UsersList({ users: usersProp = [], usuarios, usuariosInf
   const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : ((Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {}))
   const grupos = Array.isArray(groups) ? groups : []
 
+  const formatLastSeen = (ts) => {
+    if (!ts) return 'Desconectado'
+    return new Date(ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+  }
+
   return (
     <aside className="users sidebar">
       <div style={{display:'flex', gap:8, alignItems:'center'}}>
@@ -68,11 +73,16 @@ export default function UsersList({ users: usersProp = [], usuarios, usuariosInf
       <ul>
         {activeTab === 'todos' && (Array.isArray(localUsers) ? localUsers : []).map((u, i) => {
           const name = String(u).trim()
+          const st = status && (status[name] || status[name.toLowerCase()]) ? (status[name] || status[name.toLowerCase()]) : null
           return (
             <li key={`u-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
               <div className="user-item" onClick={() => onSelect(name)}>
                 <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
                 <div className="meta"><div className="name">{name}</div></div>
+                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                  <div className={`dot ${st && st.online ? 'online' : 'offline'}`} />
+                  <div className="user-status">{st && st.online ? 'En línea' : `Últ. vez ${formatLastSeen(st && st.lastSeen)}`}</div>
+                </div>
               </div>
             </li>
           )
@@ -80,11 +90,16 @@ export default function UsersList({ users: usersProp = [], usuarios, usuariosInf
 
         {activeTab === 'personas' && (Array.isArray(localUsers) ? localUsers.filter(u => u !== usuarioActual) : []).map((u, i) => {
           const name = String(u).trim()
+          const st = status && (status[name] || status[name.toLowerCase()]) ? (status[name] || status[name.toLowerCase()]) : null
           return (
             <li key={`p-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
               <div className="user-item" onClick={() => onSelect({ tipo: 'privado', nombre: name })}>
                 <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
                 <div className="meta"><div className="name">{name}</div></div>
+                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                  <div className={`dot ${st && st.online ? 'online' : 'offline'}`} />
+                  <div className="user-status">{st && st.online ? 'En línea' : `Últ. vez ${formatLastSeen(st && st.lastSeen)}`}</div>
+                </div>
               </div>
             </li>
           )

@@ -7,6 +7,7 @@ export default function useWebSocket() {
   const [usuarios, setUsuarios] = useState([])
   const [usuariosInfo, setUsuariosInfo] = useState({})
   const [users, setUsers] = useState([])
+  const [status, setStatus] = useState({})
   const [groups, setGroups] = useState([])
   // per-user maps to avoid cross-user clobbering
   const [contactsByUser, setContactsByUser] = useState({})
@@ -179,6 +180,15 @@ export default function useWebSocket() {
 
       const { mensaje, data } = p
 
+      // Support backend status frame: { type: 'status', users: { user: { online:true, lastSeen:null }}}
+      if (p && (p.type === 'status' || (data && data.type === 'status'))) {
+        try {
+          const payload = (p.type === 'status') ? p : data
+          setStatus(payload.users || {})
+        } catch (e) { console.error('Error processing status frame', e) }
+        return
+      }
+
       // Nuevo: manejo de CONTACTS (lista de contactos ricos) y STATUS (cambios de presencia)
       // CONTACTS messages are ignored in the users-first UI (server provides USERS/CONECTADOS/STATUS)
 
@@ -261,6 +271,16 @@ export default function useWebSocket() {
               if (norm(user) !== (curr || '')) set.add(user)
               return Array.from(set)
             })
+            // update status map for this user
+            try {
+              setStatus(prev => {
+                const copy = Object.assign({}, prev || {})
+                const uname = (typeof user === 'string' ? user : (user.username || user.nombre || '')).toString()
+                if (!uname) return copy
+                copy[uname] = { online: !!online, lastSeen: lastSeen || (online ? null : Date.now()) }
+                return copy
+              })
+            } catch (e) {}
           }
         } catch (e) { console.error('Error procesando STATUS', e) }
         return
@@ -771,6 +791,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuarios, usuariosInfo, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuarios, usuariosInfo, status, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
 
 }

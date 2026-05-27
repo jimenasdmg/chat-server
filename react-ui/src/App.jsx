@@ -20,6 +20,7 @@ export default function App() {
     connected,
     users,
     usuariosInfo,
+    status,
     groups,
     messages,
     sendReadReceipt,
@@ -111,7 +112,9 @@ export default function App() {
 
             <UsersList
               users={users}
+              usuarios={usuarios}
               usuariosInfo={usuariosInfo}
+              status={status}
               usuarioSeleccionado={usuarioSeleccionado}
               onSelect={handleSelectChat}
               usuarioActual={usuarioActual}
