@@ -96,6 +96,8 @@ export default function useWebSocket() {
 
     ws.onmessage = (evt) => {
       const p = parse(evt.data)
+      // Log raw parsed websocket frame for debugging
+      try { console.log('WS RECIBIDO:', p) } catch (e) {}
       if (!p) return
 
       // soporte para frames directos de grupo: { tipo: 'CHAT_GRUPO', grupo, emisor, mensaje, ts, id }
@@ -170,49 +172,47 @@ export default function useWebSocket() {
       // CONTACTS messages are ignored in the users-first UI (server provides USERS/CONECTADOS/STATUS)
 
       // New: server can send a rich USERS list via { type: 'users', users: [...] }
-      if ((p && p.type === 'users') || mensaje === 'USERS' || mensaje === 'CONECTADOS') {
+      // Ignore CONTACTS frames (server sends CONTACTS but UI uses USERS/CONECTADOS/STATUS)
+      if ((p && p.type === 'contacts') || mensaje === 'CONTACTS') {
+        console.log('CONTACTS ignorados')
+        return
+      }
+
+      if ((p && p.type === 'users') || mensaje === 'USERS') {
         try {
-          // data might be array or object with { users: [] }
-          const arr = (p && p.type === 'users' && Array.isArray(p.users)) ? p.users : (Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []))
-          const normalized = arr.map(u => {
-            if (!u) return null
-            if (typeof u === 'string') return { username: u, online: false, lastSeen: null }
-            return { username: u.username || u.nombre || u.name || (u.id || ''), online: !!u.online, lastSeen: u.last_seen || u.lastSeen || null }
-          }).filter(Boolean)
-          const current = usernameRef.current
-          const filtered = normalized.filter(u => norm(u.username) !== (current || ''))
-          setUsers(filtered)
-          console.log('USERS', filtered)
+          const arr = (p && p.type === 'users' && Array.isArray(p.users))
+            ? p.users
+            : (Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []))
+          const mapped = Array.isArray(arr)
+            ? arr.map(u => {
+                if (!u) return null
+                if (typeof u === 'string') return { username: u, online: false, lastSeen: null }
+                return { username: u.username || u.nombre || u.name || (u.id || ''), online: u.online === true, lastSeen: u.lastSeen || u.last_seen || null }
+              }).filter(Boolean)
+            : []
+          setUsers(mapped)
+          console.log('USERS', mapped)
         } catch (e) { console.error('Error procesando USERS', e) }
+        return
+      }
+
+      if ((p && p.type === 'conectados') || mensaje === 'CONECTADOS') {
+        try {
+          const conectados = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : [])
+          setUsers(prev => Array.isArray(prev) ? prev.map(u => ({ ...u, online: Array.isArray(conectados) && conectados.includes(u.username) })) : prev)
+        } catch (e) { console.error('Error procesando CONECTADOS', e) }
         return
       }
 
       if ((p && p.type === 'status') || mensaje === 'STATUS') {
         try {
           const payload = (p && p.type === 'status') ? p : data
-          const uname = payload && (payload.username || payload.user || payload.usuario) ? (payload.username || payload.user || payload.usuario) : null
-          const online = payload && typeof payload.online !== 'undefined' ? !!payload.online : Boolean(payload && payload.online)
-          const lastSeen = payload && (payload.lastSeen || payload.last_seen) ? (payload.lastSeen || payload.last_seen) : (payload && payload.last_seen === 0 ? 0 : null)
+          if (!payload) return
+          const uname = payload.username || payload.user || payload.usuario
           if (!uname) return
-          const current = usernameRef.current
-          // update users array: set online/lastSeen for matching username
-          setUsers(prev => {
-            const arr = Array.isArray(prev) ? prev.slice() : []
-            let found = false
-            const mapped = arr.map(u => {
-              try {
-                if (norm(u.username) === norm(uname)) {
-                  found = true
-                  return Object.assign({}, u, { online: !!online, lastSeen: lastSeen || (online ? u.lastSeen : Date.now()) })
-                }
-              } catch (e) {}
-              return u
-            })
-            if (!found && norm(uname) !== (current || '')) {
-              mapped.push({ username: uname, online: !!online, lastSeen: lastSeen || (online ? null : Date.now()) })
-            }
-            return mapped
-          })
+          const online = typeof payload.online !== 'undefined' ? !!payload.online : Boolean(payload && payload.online)
+          const lastSeen = payload && (payload.lastSeen || payload.last_seen) ? (payload.lastSeen || payload.last_seen) : (payload && payload.last_seen === 0 ? 0 : null)
+          setUsers(prev => Array.isArray(prev) ? prev.map(u => u.username === uname ? { ...u, online: online, lastSeen: lastSeen } : u) : prev)
         } catch (e) { console.error('Error procesando STATUS', e) }
         return
       }

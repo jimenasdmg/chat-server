@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react'
 
 export default function UsersList({ users: usersProp = [], usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
-  const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
 
   // Create group now handled by parent modal; onOpenCreateGroup prop triggers modal
@@ -51,17 +50,23 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
   }, [usuarioActual, groups])
 
   // determine list of users to display (prefer `users` prop)
-  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : []
+  const users = usersProp
   const grupos = Array.isArray(groups) ? groups : []
 
-  const visibleUsers = Array.isArray(localUsers)
-    ? localUsers.filter(
-        u =>
-          u &&
-          u.username &&
-          u.username !== usuarioActual
-      )
-    : []
+  const visibleUsers =
+    Array.isArray(users)
+      ? users.filter(
+          u =>
+            u?.username &&
+            u.username?.toString()
+              .trim()
+              .toLowerCase()
+              !==
+              String(usuarioActual || "")
+                .trim()
+                .toLowerCase()
+        )
+      : []
 
   const formatLastSeen = (ts) => {
     if (!ts) return 'Desconectado'
@@ -75,64 +80,69 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
       </div>
       <div className="tabs">
         <button className={`tab ${activeTab === 'todos' ? 'active' : ''}`} onClick={() => { setActiveTab('todos'); onSelect('Todos') }}>Todos</button>
-        <button className={`tab ${activeTab === 'personas' ? 'active' : ''}`} onClick={() => { setActiveTab('personas'); const first = localUsers.find(u => u !== usuarioActual); if (first) onSelect(first) }}>Personas</button>
+        <button className={`tab ${activeTab === 'personas' ? 'active' : ''}`} onClick={() => { setActiveTab('personas') }}>Personas</button>
         <button className={`tab ${activeTab === 'grupos' ? 'active' : ''}`} onClick={() => { setActiveTab('grupos'); const firstG = (groups || [])[0]; if (firstG) onSelect(firstG) }}>Grupos</button>
       </div>
       <h3>{activeTab === 'todos' ? 'Todos' : activeTab === 'personas' ? 'Personas' : 'Grupos'}</h3>
       <ul>
-        {activeTab === 'todos' && (Array.isArray(localUsers) ? localUsers : []).map((u, i) => {
-          const name = (u && u.username) ? u.username : (u || '').toString()
-          const online = u && typeof u.online !== 'undefined' ? !!u.online : false
-          const lastSeen = u && (u.lastSeen || u.last_seen) ? (u.lastSeen || u.last_seen) : null
-          return (
-            <li key={`u-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
-              <div className="user-item" onClick={() => onSelect(name)}>
-                <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
-                <div className="meta"><div className="name">{name}</div></div>
-                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  <div className={`dot ${online ? 'online' : 'offline'}`} />
-                  <div className="user-status">{online ? 'En línea' : `Últ. vez ${formatLastSeen(lastSeen)}`}</div>
-                </div>
-              </div>
+        {activeTab === 'todos' && (
+          visibleUsers.length > 0
+          ? visibleUsers.map((u, i) => {
+              return (
+                <li key={u.id || i} className={usuarioSeleccionado === u.username ? 'selected' : ''}>
+                  <div className="user-item" onClick={() => onSelect(u.username)}>
+                    <div className="avatar">{u.username?.[0]?.toUpperCase()}</div>
+                    <div className="meta">
+                      <div className="name">{u.username}</div>
+                      <small>
+                        {
+                          u.online
+                            ? "🟢 En línea"
+                            : u.lastSeen
+                            ? `⚪ Últ. vez ${new Date(u.lastSeen).toLocaleTimeString("es-MX")}`
+                            : "⚪ Desconectado"
+                        }
+                      </small>
+                    </div>
+                    <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                      <div className={`dot ${u && typeof u.online !== 'undefined' ? (u.online ? 'online' : 'offline') : 'offline'}`} />
+                    </div>
+                  </div>
+                </li>
+              )
+            })
+          : (
+            <li>
+              <div>No hay usuarios</div>
             </li>
           )
-        })}
+        )}
 
         {activeTab === 'personas' && (
           visibleUsers.length > 0
-          ? visibleUsers.map((u, i) => (
-            <li key={u.id || i} className={usuarioSeleccionado === u.username ? 'selected' : ''}>
-              <div
-                className="user-item"
-                onClick={() => onSelect(u.username)}
-              >
-
-                <div className="avatar">
-                  {u.username?.[0]?.toUpperCase()}
-                </div>
-
-                <div>
-
-                  <div>
-                    {u.username}
+            ? visibleUsers.map((u, i) => (
+                <li key={u.id || i} className={usuarioSeleccionado === u.username ? 'selected' : ''}>
+                  <div className="user-item" onClick={() => onSelect(u.username)}>
+                    <div className="avatar">{u.username?.[0]?.toUpperCase()}</div>
+                    <div className="meta">
+                      <div className="name">{u.username}</div>
+                      <small>
+                        {
+                          u.online
+                            ? "🟢 En línea"
+                            : u.lastSeen
+                            ? `⚪ Últ. vez ${new Date(u.lastSeen).toLocaleTimeString("es-MX")}`
+                            : "⚪ Desconectado"
+                        }
+                      </small>
+                    </div>
+                    <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                      <div className={`dot ${u && typeof u.online !== 'undefined' ? (u.online ? 'online' : 'offline') : 'offline'}`} />
+                    </div>
                   </div>
-
-                  <small>
-                    {
-                      u.online
-                      ? "🟢 En línea"
-                      : u.lastSeen
-                      ? `⚪ Últ. vez ${new Date(u.lastSeen).toLocaleTimeString()}`
-                      : "⚪ Desconectado"
-                    }
-                  </small>
-
-                </div>
-
-              </div>
-            </li>
-          ))
-          : <li><div>No hay usuarios</div></li>
+                </li>
+              ))
+            : <li><div>No hay usuarios</div></li>
         )}
 
         {activeTab === 'grupos' && (Array.isArray(grupos) ? grupos : []).map((g, i) => {
