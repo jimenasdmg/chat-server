@@ -125,7 +125,7 @@ export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccio
               </div>
             </li>
           )
-        })}
+        })()}
 
         {activeTab === 'grupos' && (Array.isArray(groups) ? groups : []).map((g, i) => {
           const groupName = String(g).toString().trim()
