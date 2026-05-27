@@ -395,17 +395,19 @@ const storage = {
       if (!uid || !cid) return
 
       // avoid duplicates: atomic insert-if-not-exists
-      console.log(
-        "INSERT CONTACTO",
-        uid,
-        cid
-      )
-      try {
-        await db.execute(`INSERT INTO contactos (usuario_id, contacto_id, created_at)
-          SELECT ?, ?, NOW() FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ?)`, [uid, cid, uid, cid])
-      } catch (e) {
-        try { await db.execute('INSERT INTO contactos (usuario_id, contacto_id, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE usuario_id = usuario_id', [uid, cid]) } catch (e2) { console.error(e2) }
-      }
+      console.log("INSERT CONTACTO", uid, cid)
+      await db.execute(`
+INSERT INTO contactos (usuario_id, contacto_id, created_at)
+SELECT ?, ?, NOW()
+FROM DUAL
+WHERE NOT EXISTS (
+SELECT 1
+FROM contactos
+WHERE usuario_id=?
+AND contacto_id=?
+)
+`, [uid, cid, uid, cid])
+      console.log("CONTACTO INSERTADO")
     } catch (e) {
       console.error('storage:addContact error', e)
     }
