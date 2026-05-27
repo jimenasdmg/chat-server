@@ -9,7 +9,6 @@ const storage = {
     }
   },
 
-  // Ensure contactos table has unique constraint and remove existing duplicates
   async _ensureContactUniqueness() {
     try {
       // remove duplicate rows keeping the lowest id (if id exists)
@@ -144,17 +143,6 @@ const storage = {
       )
       const id = res.insertId
 
-      console.log("CREANDO CONTACTOS", emisorId, receptorId)
-
-      if (
-        tipo === "privado" &&
-        emisorId &&
-        receptorId
-      ) {
-        await this.addContact(emisorId, receptorId)
-        await this.addContact(receptorId, emisorId)
-      }
-
       if (tipo === 'privado' && msg.broadcast) {
         const [users] = await db.execute('SELECT id FROM usuarios')
         for (const u of users) {
@@ -187,6 +175,42 @@ const storage = {
           }
           await db.execute('INSERT INTO message_recipients (mensaje_id, usuario_id, entregado, leido, entregado_at, leido_at) VALUES (?, ?, 0, 0, NULL, NULL)', [id, uid])
         }
+      }
+
+      // DESPUÉS de crear recipients
+      if (
+        tipo==="privado"
+      ){
+        const targets=
+        Array.isArray(msg.receptor)
+        ? msg.receptor
+        : [msg.receptor]
+
+        for(const t of targets){
+
+          const [rows]=await db.execute(
+           "SELECT id FROM usuarios WHERE username=?",
+           [t]
+          )
+
+          if(rows.length){
+
+            await this.addContact(
+             emisorId,
+             rows[0].id
+            )
+
+            await this.addContact(
+             rows[0].id,
+             emisorId
+            )
+
+          }
+        }
+
+        console.log(
+         "CONTACTOS AUTO OK"
+        )
       }
 
       console.log("MENSAJE GUARDADO", id)
@@ -394,20 +418,22 @@ const storage = {
 
       if (!uid || !cid) return
 
-      // avoid duplicates: atomic insert-if-not-exists
+      // avoid duplicates: simplified insert
       console.log("INSERT CONTACTO", uid, cid)
       await db.execute(`
-INSERT INTO contactos (usuario_id, contacto_id, created_at)
-SELECT ?, ?, NOW()
-FROM DUAL
-WHERE NOT EXISTS (
-SELECT 1
-FROM contactos
-WHERE usuario_id=?
-AND contacto_id=?
-)
-`, [uid, cid, uid, cid])
-      console.log("CONTACTO INSERTADO")
+    INSERT IGNORE INTO contactos(
+     usuario_id,
+     contacto_id
+    )
+    VALUES (?,?)
+    `,[
+     uid,
+     cid
+    ])
+
+      console.log(
+        "CONTACTO INSERTADO"
+      )
     } catch (e) {
       console.error('storage:addContact error', e)
     }
