@@ -70,10 +70,13 @@ class wsServer {
 			const historial = await storage.getMessages()
 			ws.send(JSON.stringify({ mensaje: 'HISTORIAL', data: historial }))
 			ws.send(JSON.stringify({ mensaje: 'GRUPOS', data: await storage.getGroups(ws.data) }))
-			ws.send(JSON.stringify({ mensaje: 'USERS', data: await storage.getUsers() }))
-			const contacts = await storage.getContacts(ws.data)
-			console.log('CONTACTOS', contacts)
-			ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: contacts }))
+			const allUsers = await storage.getUsers()
+			ws.send(JSON.stringify({ mensaje: 'USERS', data: allUsers }))
+			try {
+				const contactsForClient = Array.isArray(allUsers) ? allUsers.filter(u => String(u.nombre).trim() !== String(ws.data).trim()) : []
+				console.log('CONTACTS as USERS', contactsForClient)
+				ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: contactsForClient }))
+			} catch (e) { console.error('send CONTACTS error', e) }
 		} catch (e) { }
 
 		// Broadcast STATUS true to all connected clients
@@ -283,7 +286,9 @@ class wsServer {
 		try {
 			const user = ws.data || data
 			if (!user) return this.MSG(ws, 'CONTACTS', [])
-			const contacts = await storage.getContacts(user)
+			// Return list of users (excluding requester) as CONTACTS for compatibility
+			const allUsers = await storage.getUsers()
+			const contacts = Array.isArray(allUsers) ? allUsers.filter(u => String(u.username).trim() !== String(user).trim()) : []
 			this.MSG(ws, 'CONTACTS', contacts)
 		} catch (e) { console.error('GET_CONTACTS error', e); this.MSG(ws, 'CONTACTS', []) }
 	}
@@ -296,11 +301,9 @@ class wsServer {
 			// comprobar si el usuario destino existe
 			const found = await storage.buscarUsuario(contacto)
 			if (!found) return this.MSG(ws, 'ERROR', 'Usuario no encontrado')
-			// crear vínculo doble (no duplicará gracias a unique constraint)
-			await storage.addContact(usuario, contacto)
-			await storage.addContact(contacto, usuario)
-			// responder con lista actualizada al solicitante
-			const contacts = await storage.getContacts(usuario)
+			// For phase 1 we do not create contactos table links; respond with updated users list
+			const allUsers = await storage.getUsers()
+			const contacts = Array.isArray(allUsers) ? allUsers.filter(u => String(u.username).trim() !== String(usuario).trim()) : []
 			this.MSG(ws, 'CONTACTS', contacts)
 		} catch (e) { console.error('ADD_CONTACT error', e); this.MSG(ws, 'ERROR', 'No se pudo agregar contacto') }
 	}

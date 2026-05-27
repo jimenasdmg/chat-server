@@ -67,7 +67,7 @@ const storage = {
 
   async getUsers() {
     const [rows] = await db.execute('SELECT id, username, online, created_at, last_seen FROM usuarios')
-    return rows.map(r => ({ id: r.id, nombre: r.username, connected: !!r.online, firstSeen: r.created_at, lastSeen: r.last_seen }))
+    return rows.map(r => ({ id: r.id, username: r.username, online: !!r.online, last_seen: r.last_seen }))
   },
 
   // Ensure a user exists; returns the user id (creates if missing)
@@ -177,29 +177,7 @@ const storage = {
         }
       }
 
-      // Crear contactos automáticos SI existe receptor
-      if (
-        emisorId &&
-        receptorId &&
-        !grupoId
-      ){
-       console.log(
-        "AUTO CONTACTO",
-        emisorId,
-        receptorId,
-        tipo
-       )
-
-       await this.addContact(
-        emisorId,
-        receptorId
-       )
-
-       await this.addContact(
-        receptorId,
-        emisorId
-       )
-      }
+      // NOTE: contacts table no longer actively used in Phase 1
 
       console.log("MENSAJE GUARDADO", id)
 
