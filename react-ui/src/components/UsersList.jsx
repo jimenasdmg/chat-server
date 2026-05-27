@@ -54,6 +54,15 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
   const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : []
   const grupos = Array.isArray(groups) ? groups : []
 
+  const visibleUsers = Array.isArray(localUsers)
+    ? localUsers.filter(
+        u =>
+          u &&
+          u.username &&
+          u.username !== usuarioActual
+      )
+    : []
+
   const formatLastSeen = (ts) => {
     if (!ts) return 'Desconectado'
     return new Date(ts).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
@@ -89,23 +98,42 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
           )
         })}
 
-        {activeTab === 'personas' && (Array.isArray(localUsers) ? localUsers.filter(u => ((u && u.username) ? u.username : u) !== usuarioActual) : []).map((u, i) => {
-          const name = (u && u.username) ? u.username : (u || '').toString()
-          const online = u && typeof u.online !== 'undefined' ? !!u.online : false
-          const lastSeen = u && (u.lastSeen || u.last_seen) ? (u.lastSeen || u.last_seen) : null
-          return (
-            <li key={`p-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
-              <div className="user-item" onClick={() => onSelect({ tipo: 'privado', nombre: name })}>
-                <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
-                <div className="meta"><div className="name">{name}</div></div>
-                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  <div className={`dot ${online ? 'online' : 'offline'}`} />
-                  <div className="user-status">{online ? 'En línea' : `Últ. vez ${formatLastSeen(lastSeen)}`}</div>
+        {activeTab === 'personas' && (
+          visibleUsers.length > 0
+          ? visibleUsers.map((u, i) => (
+            <li key={u.id || i} className={usuarioSeleccionado === u.username ? 'selected' : ''}>
+              <div
+                className="user-item"
+                onClick={() => onSelect(u.username)}
+              >
+
+                <div className="avatar">
+                  {u.username?.[0]?.toUpperCase()}
                 </div>
+
+                <div>
+
+                  <div>
+                    {u.username}
+                  </div>
+
+                  <small>
+                    {
+                      u.online
+                      ? "🟢 En línea"
+                      : u.lastSeen
+                      ? `⚪ Últ. vez ${new Date(u.lastSeen).toLocaleTimeString()}`
+                      : "⚪ Desconectado"
+                    }
+                  </small>
+
+                </div>
+
               </div>
             </li>
-          )
-        })}
+          ))
+          : <li><div>No hay usuarios</div></li>
+        )}
 
         {activeTab === 'grupos' && (Array.isArray(grupos) ? grupos : []).map((g, i) => {
           const groupName = String(g).trim()
