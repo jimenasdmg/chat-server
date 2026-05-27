@@ -124,6 +124,7 @@ wss.on('connection', (ws) => {
 		// Persistir listado de clientes (compat) y usuario enriquecido
 			await storage.addClient(ws.nombre).catch(e => console.error('storage:addClient', e))
 			await storage.addUser(ws.nombre).catch(e => console.error('storage:addUser', e))
+			await storage.updateOnline(ws.nombre, true).catch(e => console.error('storage:updateOnline', e))
 
 		// Enviar lista actualizada a todos
 		enviarConectados()
@@ -133,8 +134,13 @@ wss.on('connection', (ws) => {
 			const historial = await storage.getMessages()
 			ws.send(JSON.stringify({ mensaje: 'HISTORIAL', data: historial }))
 			ws.send(JSON.stringify({ mensaje: 'GRUPOS', data: await storage.getGroups(ws.nombre) }))
-			ws.send(JSON.stringify({ mensaje: 'USERS', data: await storage.getUsers() }))
-			ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: await storage.getContacts(ws.nombre) }))
+						const allUsers = await storage.getUsers()
+						ws.send(JSON.stringify({ mensaje: 'USERS', data: allUsers }))
+						// For backward compatibility, send CONTACTS as the list of users except the current one
+						try {
+							const contactsForClient = Array.isArray(allUsers) ? allUsers.filter(u => String(u.username).trim() !== String(ws.nombre).trim()) : []
+							ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: contactsForClient }))
+						} catch (e) { console.error('send CONTACTS error', e) }
 			// enviar mensajes pendientes
 			try {
 				const pending = await storage.getPending(ws.nombre)
@@ -313,7 +319,8 @@ wss.on('connection', (ws) => {
 
 	ws.on('close', () => {
 		console.log('Cliente desconectado', ws.nombre || '')
-			// Marcar desconexión en storage y limpiar lista de sockets
+			// Marcar desconexión en storage and update online status, then limpiar lista de sockets
+			storage.updateOnline(ws.nombre, false).catch(e => console.error('storage:updateOnline', e))
 			storage.removeUser(ws.nombre).catch(e => console.error('storage:removeUser', e))
 			clientes = clientes.filter(c => c !== ws)
 			// Notificar a todos la lista actualizada
