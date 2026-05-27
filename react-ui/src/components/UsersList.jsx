@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
+export default function UsersList({ users: usersProp = [], usuarios, usuariosInfo = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
@@ -50,8 +50,8 @@ export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccio
     console.log('GROUPS USER', groups)
   }, [usuarioActual, groups])
 
-  // aliases used by rendering blocks
-  const users = (Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {})
+  // determine list of users to display (prefer `users` prop)
+  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : ((Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {}))
   const grupos = Array.isArray(groups) ? groups : []
 
   return (
@@ -66,52 +66,28 @@ export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccio
       </div>
       <h3>{activeTab === 'todos' ? 'Todos' : activeTab === 'personas' ? 'Personas' : 'Grupos'}</h3>
       <ul>
-        {activeTab === 'todos' && (() => {
-          const l = lastFor('Todos')
-          const usuarioNorm = norm(usuarioActual)
-          const unreadTodos = mensajes.filter(m => {
-            if (m.leido) return false
-            const mEmNorm = m.emisorNorm || norm(m.emisor)
-            if (mEmNorm === usuarioNorm) return false
-            if (m.broadcast === true) return true
-            const receptorNorms = Array.isArray(m.receptorNorm) ? m.receptorNorm : (Array.isArray(m.receptor) ? m.receptor.map(r => norm(r)) : [norm(m.receptor)])
-            return receptorNorms.includes('todos')
-          }).length
+        {activeTab === 'todos' && (Array.isArray(localUsers) ? localUsers : []).map((u, i) => {
+          const name = String(u).trim()
           return (
-            <li
-              className={usuarioSeleccionado === 'Todos' ? 'selected' : ''}
-              onClick={() => onSelect('Todos')}
-            >
-              <div className="user-item">
-                <div className="avatar">T</div>
-                <div className="meta">
-                  <div className="name">Todos</div>
-                  <div className="sub">Enviar a todos</div>
-                </div>
-                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  {unreadTodos > 0 && <div className="badge">{unreadTodos}</div>}
-                  <div className="dot online" />
-                  <div className="time">{l ? fmtTime(l.ts) : ''}</div>
-                </div>
+            <li key={`u-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
+              <div className="user-item" onClick={() => onSelect(name)}>
+                <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
+                <div className="meta"><div className="name">{name}</div></div>
               </div>
             </li>
           )
-        })()}
+        })}
 
-        {activeTab === 'usuarios' &&
-        (Array.isArray(users) ? users : []).map((u, i) => {
-
+        {activeTab === 'personas' && (Array.isArray(localUsers) ? localUsers.filter(u => u !== usuarioActual) : []).map((u, i) => {
           const name = String(u).trim()
-
           return (
-            <div
-              key={i}
-              onClick={() => onSelect(name)}
-            >
-              {name}
-            </div>
+            <li key={`p-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
+              <div className="user-item" onClick={() => onSelect({ tipo: 'privado', nombre: name })}>
+                <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
+                <div className="meta"><div className="name">{name}</div></div>
+              </div>
+            </li>
           )
-
         })}
 
         {activeTab === 'grupos' && (Array.isArray(grupos) ? grupos : []).map((g, i) => {

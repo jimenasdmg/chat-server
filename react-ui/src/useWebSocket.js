@@ -6,6 +6,7 @@ export default function useWebSocket() {
   const [connected, setConnected] = useState(false)
   const [usuarios, setUsuarios] = useState([])
   const [usuariosInfo, setUsuariosInfo] = useState({})
+  const [users, setUsers] = useState([])
   const [groups, setGroups] = useState([])
   // per-user maps to avoid cross-user clobbering
   const [contactsByUser, setContactsByUser] = useState({})
@@ -86,8 +87,7 @@ export default function useWebSocket() {
       // send identification and ask for connected list (send original display name)
       ws.send(JSON.stringify({ mensaje: 'IDENTIFICACION', data: usernameTrim }))
       ws.send(JSON.stringify({ mensaje: 'CONECTADOS' }))
-      // request server-side contacts for this user
-      ws.send(JSON.stringify({ mensaje: 'GET_CONTACTS', data: usernameTrim }))
+      // do NOT request server-side contacts; UI will use USERS/CONECTADOS/STATUS
 
       // do NOT persist contacts in IndexedDB
       // seed groups from local DB so user's groups appear immediately
@@ -180,23 +180,7 @@ export default function useWebSocket() {
       const { mensaje, data } = p
 
       // Nuevo: manejo de CONTACTS (lista de contactos ricos) y STATUS (cambios de presencia)
-      if (mensaje === 'CONTACTS') {
-        try {
-          const arr = Array.isArray(data) ? data : []
-          const normalized = arr.map(c => {
-            if (!c) return null
-            if (typeof c === 'string') return { username: c, online: false, last_seen: null }
-            return { username: c.username || c.nombre || c.name || (c.id || ''), online: !!c.online, last_seen: c.last_seen || c.lastSeen || null }
-          }).filter(Boolean)
-          
-          const current = usernameRef.current
-              // exclude self
-              const filtered = normalized.filter(c => norm(c.username) !== (usernameRef.current || ''))
-              setContactsForCurrent(current, Array.from(filtered))
-              console.log('CONTACTS', filtered)
-        } catch (e) { console.error('Error procesando CONTACTS', e) }
-        return
-      }
+      // CONTACTS messages are ignored in the users-first UI (server provides USERS/CONECTADOS/STATUS)
 
       // New: server can send a rich USERS list (objects with username, online, last_seen)
       if (mensaje === 'USERS') {
@@ -208,12 +192,17 @@ export default function useWebSocket() {
             return { username: u.username || u.nombre || u.name || (u.id || ''), online: !!u.online, last_seen: u.last_seen || u.lastSeen || null }
           }).filter(Boolean)
           const names = normalized.map(u => u.username)
-          // update simple users list (strings) for existing components
-          setUsuarios(names)
+          const current = usernameRef.current
+          const filtered = names.filter(n => norm(n) !== (current || ''))
+          // update users list (exclude current)
+          setUsers(filtered)
           // update rich info map
           const info = {}
           for (const u of normalized) info[u.username] = u
           setUsuariosInfo(info)
+          // keep legacy usuarios state too
+          setUsuarios(filtered)
+          setUsers(filtered)
           console.log('USERS', normalized)
         } catch (e) { console.error('Error procesando USERS', e) }
         return
@@ -259,10 +248,17 @@ export default function useWebSocket() {
                 return copy
               })
             }
-            // Do NOT persist contacts/lastSeen in IndexedDB
-            setUsuarios(prev => {
+            // Update users/usuarios lists (exclude current)
+            setUsers(prev => {
+              const curr = usernameRef.current
               const set = new Set(Array.isArray(prev) ? prev : [])
-              set.add(user)
+              if (norm(user) !== (curr || '')) set.add(user)
+              return Array.from(set)
+            })
+            setUsuarios(prev => {
+              const curr = usernameRef.current
+              const set = new Set(Array.isArray(prev) ? prev : [])
+              if (norm(user) !== (curr || '')) set.add(user)
               return Array.from(set)
             })
           }
@@ -358,7 +354,9 @@ export default function useWebSocket() {
             if (!map.has(key)) map.set(key, name)
           }
           const names = Array.from(map.values())
-          setUsuarios(names)
+          const current = usernameRef.current
+          const filtered = names.filter(n => norm(n) !== (current || ''))
+          setUsuarios(filtered)
           console.log('USERS', names)
         } else setUsuarios([])
         return
@@ -431,7 +429,10 @@ export default function useWebSocket() {
             if (!map.has(key)) map.set(key, name)
           }
           const names = Array.from(new Set([...(Array.from(map.values())), ...(Array.isArray(usuarios) ? usuarios : [])]))
-          setUsuarios(names)
+          const current = usernameRef.current
+          const filtered = names.filter(n => norm(n) !== (current || ''))
+          setUsuarios(filtered)
+          setUsers(filtered)
         }
         return
       }
@@ -770,6 +771,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, usuarios, usuariosInfo, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuarios, usuariosInfo, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
 
 }

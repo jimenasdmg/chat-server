@@ -3,7 +3,6 @@ import useWebSocket from './useWebSocket'
 import ConnectionPanel from './components/ConnectionPanel'
 import UsersList from './components/UsersList'
 import ChatWindow from './components/ChatWindow'
-import AddContactModal from './components/AddContactModal'
 import CreateGroupModal from './components/CreateGroupModal'
 
 export default function App() {
@@ -19,7 +18,7 @@ export default function App() {
     disconnect,
     sendChat,
     connected,
-    usuarios,
+    users,
     usuariosInfo,
     groups,
     messages,
@@ -38,8 +37,23 @@ export default function App() {
   } = useWebSocket()
   
 
-  const [showAddContactModal, setShowAddContactModal] = useState(false)
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false)
+  const [selectedChat, setSelectedChat] = useState(null)
+
+  const handleSelectChat = (payload) => {
+    // payload can be a string username or an object { tipo, nombre }
+    if (!payload) return
+    if (typeof payload === 'string') {
+      setUsuarioSeleccionado(payload)
+      setSelectedChat({ tipo: 'privado', nombre: payload })
+      return
+    }
+    if (payload && typeof payload === 'object') {
+      const name = payload.nombre || payload.name || ''
+      setUsuarioSeleccionado(name)
+      setSelectedChat(payload)
+    }
+  }
 
   // Track new private messages and increment unread counts when appropriate
   React.useEffect(() => {
@@ -96,10 +110,10 @@ export default function App() {
             />
 
             <UsersList
-              usuarios={usuarios}
+              users={users}
               usuariosInfo={usuariosInfo}
               usuarioSeleccionado={usuarioSeleccionado}
-              onSelect={setUsuarioSeleccionado}
+              onSelect={handleSelectChat}
               usuarioActual={usuarioActual}
               mensajes={messages}
               onCreateGroup={createGroup}
@@ -116,9 +130,8 @@ export default function App() {
               usuarioActual={usuarioActual}
               usuarioSeleccionado={usuarioSeleccionado}
               setUsuarioSeleccionado={setUsuarioSeleccionado}
-                usuarios={usuarios}
+                usuarios={users}
                 groups={groups}
-              contacts={contacts}
               mensajes={messages}
               onSend={sendChat}
               onMarkAsRead={sendReadReceipt}

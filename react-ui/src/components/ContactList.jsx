@@ -109,7 +109,7 @@ export default function ContactList({ contacts = [], contactsByUser = {}, groups
               </div>
             </li>
           )
-        }) : <li style={{padding:12,color:'#666'}}>No tienes contactos</li>)}
+        }) : <li style={{padding:12,color:'#666'}}>No hay personas conectadas</li>)}
 
       </ul>
 
