@@ -144,6 +144,18 @@ const storage = {
       )
       const id = res.insertId
 
+      // NUEVO: crear contacto mutuo automático usando IDs si están disponibles
+      try {
+        if (tipo === 'privado' && !msg.broadcast) {
+          if (emisorId && receptorId) {
+            try {
+              await this.addContact(emisorId, receptorId)
+              await this.addContact(receptorId, emisorId)
+            } catch (e) { /* ignore contact errors */ }
+          }
+        }
+      } catch (e) { /* ignore */ }
+
       // Automatic contact linking for first private message between users
       try {
         if (tipo === 'privado' && !msg.broadcast && msg.emisor) {
@@ -380,18 +392,29 @@ const storage = {
   async addContact(usuario, contacto) {
     if (!usuario || !contacto) return
     try {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
-      const [crows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [contacto])
-      if (!urows || !urows.length || !crows || !crows.length) return
-      const uid = urows[0].id
-      const cid = crows[0].id
-      // avoid duplicates: check first, then insert if missing
+      // support both username strings and numeric ids
+      let uid = usuario
+      let cid = contacto
+
+      if (typeof usuario === 'string') {
+        const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
+        if (!urows || !urows.length) return
+        uid = urows[0].id
+      }
+
+      if (typeof contacto === 'string') {
+        const [crows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [contacto])
+        if (!crows || !crows.length) return
+        cid = crows[0].id
+      }
+
+      if (!uid || !cid) return
+
+      // avoid duplicates: atomic insert-if-not-exists
       try {
-        // atomic insert-if-not-exists using INSERT ... SELECT ... WHERE NOT EXISTS
         await db.execute(`INSERT INTO contactos (usuario_id, contacto_id, created_at)
           SELECT ?, ?, NOW() FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ?)`, [uid, cid, uid, cid])
       } catch (e) {
-        // fallback to single-row insert with ignore via ON DUPLICATE KEY
         try { await db.execute('INSERT INTO contactos (usuario_id, contacto_id, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE usuario_id = usuario_id', [uid, cid]) } catch (e2) { /* ignore */ }
       }
     } catch (e) {
