@@ -21,19 +21,16 @@ let mensajeId = 1
 
 let mensajesStore = []
 
-// Enviar lista de conectados a todos los clientes
-function enviarConectados() {
-	// Obtener usuarios conectados desde sockets activos (no usar storage para presencia realtime)
-	try {
-		const activos = clientes.filter(c => c && c.readyState === 1 && c.nombre).map(c => c.nombre)
-		const nombresUnicos = [...new Set(activos)]
-		const payload = JSON.stringify({ mensaje: 'CONECTADOS', data: nombresUnicos })
-		clientes.forEach(c => {
-			if (c && c.readyState === 1) {
-				try { c.send(payload) } catch (e) { /* ignore send errors */ }
-			}
-		})
-	} catch (e) { console.error('enviarConectados error', e) }
+// Broadcast helper: enviar objeto JSON a todos los clientes
+function broadcast(obj) {
+  try {
+    const payload = JSON.stringify(obj)
+    clientes.forEach(c => {
+      if (c && c.readyState === 1) {
+        try { c.send(payload) } catch (e) { /* ignore send errors */ }
+      }
+    })
+  } catch (e) { console.error('broadcast error', e) }
 }
 
 // Manejo de conexiones
@@ -98,9 +95,8 @@ wss.on('connection', (ws) => {
 		if (mensaje === 'CONECTADOS') {
 			// Client asked for current connected users — respond from active sockets
 			try {
-				const activos = clientes.filter(c => c && c.readyState === 1 && c.nombre).map(c => c.nombre)
-				const nombresUnicos = [...new Set(activos)]
-				ws.send(JSON.stringify({ mensaje: 'CONECTADOS', data: nombresUnicos }))
+				const allUsers = await storage.getUsers()
+				ws.send(JSON.stringify({ type: 'users', users: allUsers }))
 			} catch (e) { console.error('Error respondiendo CONECTADOS', e) }
 			return
 		}
@@ -126,8 +122,12 @@ wss.on('connection', (ws) => {
 			await storage.addUser(ws.nombre).catch(e => console.error('storage:addUser', e))
 			await storage.updateOnline(ws.nombre, true).catch(e => console.error('storage:updateOnline', e))
 
-		// Enviar lista actualizada a todos
-		enviarConectados()
+		// Notify all clients about this user's presence and broadcast full users list
+		try {
+			broadcast({ type: 'status', username: ws.nombre, online: true })
+			const allUsers = await storage.getUsers()
+			broadcast({ type: 'users', users: allUsers })
+		} catch (e) { console.error('broadcast users/status error', e) }
 
 		// Enviar historial persistente, grupos y usuarios al cliente recién identificado
 		try {
@@ -135,12 +135,8 @@ wss.on('connection', (ws) => {
 			ws.send(JSON.stringify({ mensaje: 'HISTORIAL', data: historial }))
 			ws.send(JSON.stringify({ mensaje: 'GRUPOS', data: await storage.getGroups(ws.nombre) }))
 						const allUsers = await storage.getUsers()
-						ws.send(JSON.stringify({ mensaje: 'USERS', data: allUsers }))
-						// For backward compatibility, send CONTACTS as the list of users except the current one
-						try {
-							const contactsForClient = Array.isArray(allUsers) ? allUsers.filter(u => String(u.username).trim() !== String(ws.nombre).trim()) : []
-							ws.send(JSON.stringify({ mensaje: 'CONTACTS', data: contactsForClient }))
-						} catch (e) { console.error('send CONTACTS error', e) }
+						// send full users list to newly identified client
+						ws.send(JSON.stringify({ type: 'users', users: allUsers }))
 			// enviar mensajes pendientes
 			try {
 				const pending = await storage.getPending(ws.nombre)
@@ -318,14 +314,22 @@ wss.on('connection', (ws) => {
 	})
 
 	ws.on('close', () => {
-		console.log('Cliente desconectado', ws.nombre || '')
-			// Marcar desconexión en storage and update online status, then limpiar lista de sockets
-			storage.updateOnline(ws.nombre, false).catch(e => console.error('storage:updateOnline', e))
-			storage.removeUser(ws.nombre).catch(e => console.error('storage:removeUser', e))
-			clientes = clientes.filter(c => c !== ws)
-			// Notificar a todos la lista actualizada
-			enviarConectados()
-	})
+			console.log('Cliente desconectado', ws.nombre || '')
+			;(async () => {
+				try {
+					await storage.updateOnline(ws.nombre, false).catch(e => console.error('storage:updateOnline', e))
+					await storage.removeUser(ws.nombre).catch(e => console.error('storage:removeUser', e))
+					// remove socket
+					clientes = clientes.filter(c => c !== ws)
+					// broadcast status offline with lastSeen timestamp
+					try {
+						broadcast({ type: 'status', username: ws.nombre, online: false, lastSeen: Date.now() })
+						const allUsers = await storage.getUsers()
+						broadcast({ type: 'users', users: allUsers })
+					} catch (e) { console.error('broadcast on close error', e) }
+				} catch (e) { console.error('on close handler error', e) }
+			})()
+		})
 })
 
 // Nota: se mantiene la funcionalidad de "repórtate" solo si la necesitan.

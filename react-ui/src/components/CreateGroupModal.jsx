@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function CreateGroupModal({ onClose, contacts = [], currentUser, onCreate }) {
+export default function CreateGroupModal({ onClose, users = [], currentUser, onCreate }) {
   const [nombre, setNombre] = useState('')
   const [selected, setSelected] = useState(() => new Set())
 
@@ -29,8 +29,8 @@ export default function CreateGroupModal({ onClose, contacts = [], currentUser, 
         </div>
         <div style={{maxHeight:220, overflow:'auto', border:'1px solid #eee', padding:8, borderRadius:8, marginBottom:12}}>
           <div style={{fontSize:13, marginBottom:8}}>Selecciona miembros (haz clic):</div>
-          {(contacts || []).map((c,i) => {
-            const name = c.username || c.nombre || c
+          {(users || []).map((c,i) => {
+            const name = (c && c.username) ? c.username : (c && (c.nombre || c.name)) ? (c.nombre || c.name) : c
             if (name === currentUser) return null
             const checked = selected.has(name)
             return (

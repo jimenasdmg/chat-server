@@ -5,13 +5,9 @@ export default function useWebSocket() {
   const wsRef = useRef(null)
   const [connected, setConnected] = useState(false)
   const [users, setUsers] = useState([])
-  const [usuariosInfo, setUsuariosInfo] = useState({})
-  const [status, setStatus] = useState({})
   const [groups, setGroups] = useState([])
   // per-user maps to avoid cross-user clobbering
-  const [contactsByUser, setContactsByUser] = useState({})
   const [groupsByUser, setGroupsByUser] = useState({})
-  const [contacts, setContacts] = useState([]) // visible contacts for current user
   const [messages, setMessages] = useState([])
   const [dbReady, setDbReady] = useState(false)
 
@@ -24,14 +20,6 @@ export default function useWebSocket() {
   const fire = (p) => { if (!p) return; if (p.then) p.catch(e => console.error('Promise error (fire):', e)) }
   // helper para ejecutar promesas sin await en handlers sincrónicos
   // (nota: la variable 'user' no existe aquí; las referencias a 'user' aparecen sólo en handlers)
-
-  const setContactsForCurrent = (current, arr) => {
-    if (!current) return
-    setContactsByUser(prev => ({ ...(prev || {}), [current]: Array.isArray(arr) ? arr : [] }))
-    setContacts(Array.isArray(arr) ? arr : [])
-    console.log('USER', current)
-    console.log('CONTACTS USER', { ...(contactsByUser || {}), [current]: arr })
-  }
 
   const setGroupsForCurrent = (current, arr) => {
     if (!current) return
@@ -66,9 +54,7 @@ export default function useWebSocket() {
 
   const norm = (s) => (s || '').toString().trim().toLowerCase()
 
-  useEffect(() => {
-    console.log('CONTACTOS ACTUALIZADOS:', contacts)
-  }, [contacts])
+  // contacts removed: UI uses `users` provided by server
 
   const connect = useCallback((username, url = 'wss://chat-server-production-1abc.up.railway.app') => {
     if (!username) return
@@ -86,7 +72,6 @@ export default function useWebSocket() {
 
       // send identification and ask for connected list (send original display name)
       ws.send(JSON.stringify({ mensaje: 'IDENTIFICACION', data: usernameTrim }))
-      ws.send(JSON.stringify({ mensaje: 'CONECTADOS' }))
       // do NOT request server-side contacts; UI will use USERS/CONECTADOS/STATUS
 
       // do NOT persist contacts in IndexedDB
@@ -179,101 +164,55 @@ export default function useWebSocket() {
 
       const { mensaje, data } = p
 
-      // Support backend status frame: { type: 'status', users: { user: { online:true, lastSeen:null }}}
-      if (p && (p.type === 'status' || (data && data.type === 'status'))) {
-        try {
-          const payload = (p.type === 'status') ? p : data
-          setStatus(payload.users || {})
-        } catch (e) { console.error('Error processing status frame', e) }
-        return
-      }
+      // Support backend status frame via p.type === 'status' (handled below)
 
       // Nuevo: manejo de CONTACTS (lista de contactos ricos) y STATUS (cambios de presencia)
       // CONTACTS messages are ignored in the users-first UI (server provides USERS/CONECTADOS/STATUS)
 
-      // New: server can send a rich USERS list (objects with username, online, last_seen)
-      if (mensaje === 'USERS') {
+      // New: server can send a rich USERS list via { type: 'users', users: [...] }
+      if ((p && p.type === 'users') || mensaje === 'USERS' || mensaje === 'CONECTADOS') {
         try {
-          const arr = Array.isArray(data) ? data : []
+          // data might be array or object with { users: [] }
+          const arr = (p && p.type === 'users' && Array.isArray(p.users)) ? p.users : (Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : []))
           const normalized = arr.map(u => {
             if (!u) return null
-            if (typeof u === 'string') return { username: u, online: false, last_seen: null }
-            return { username: u.username || u.nombre || u.name || (u.id || ''), online: !!u.online, last_seen: u.last_seen || u.lastSeen || null }
+            if (typeof u === 'string') return { username: u, online: false, lastSeen: null }
+            return { username: u.username || u.nombre || u.name || (u.id || ''), online: !!u.online, lastSeen: u.last_seen || u.lastSeen || null }
           }).filter(Boolean)
-          const names = normalized.map(u => u.username)
           const current = usernameRef.current
-          const filtered = names.filter(n => norm(n) !== (current || ''))
-          // update users list (exclude current)
+          const filtered = normalized.filter(u => norm(u.username) !== (current || ''))
           setUsers(filtered)
-          // update rich info map
-          const info = {}
-          for (const u of normalized) info[u.username] = u
-          setUsuariosInfo(info)
-          // keep usuariosInfo updated; users state already set
-          console.log('USERS', normalized)
+          console.log('USERS', filtered)
         } catch (e) { console.error('Error procesando USERS', e) }
         return
       }
 
-      if (mensaje === 'STATUS') {
+      if ((p && p.type === 'status') || mensaje === 'STATUS') {
         try {
-          console.log('STATUS:', data)
-          const user = data && (data.user || data.usuario) ? (data.user || data.usuario) : (typeof data === 'string' ? data : null)
-          const online = data && typeof data.online !== 'undefined' ? !!data.online : Boolean(data)
-          const lastSeen = data && (data.last_seen || data.lastSeen) ? data.last_seen || data.lastSeen : null
-
-          if (user) {
-            const current = usernameRef.current
-            if (current) {
-              // Update per-user contacts map immutably
-              setContactsByUser(prev => {
-                const copy = Object.assign({}, prev || {})
-                const list = Array.isArray(copy[current]) ? copy[current].slice() : []
-                let found = false
-                const updatedList = list.map(c => {
-                  try {
-                    if (norm(c.username) === norm(user)) {
-                      found = true
-                      return Object.assign({}, c, { online, last_seen: lastSeen ?? (online ? c.last_seen : null) })
-                    }
-                  } catch (e) {}
-                  return c
-                })
-                if (!found) {
-                  // add minimal contact entry if not present
-                  updatedList.push({ username: user, online, last_seen: lastSeen })
+          const payload = (p && p.type === 'status') ? p : data
+          const uname = payload && (payload.username || payload.user || payload.usuario) ? (payload.username || payload.user || payload.usuario) : null
+          const online = payload && typeof payload.online !== 'undefined' ? !!payload.online : Boolean(payload && payload.online)
+          const lastSeen = payload && (payload.lastSeen || payload.last_seen) ? (payload.lastSeen || payload.last_seen) : (payload && payload.last_seen === 0 ? 0 : null)
+          if (!uname) return
+          const current = usernameRef.current
+          // update users array: set online/lastSeen for matching username
+          setUsers(prev => {
+            const arr = Array.isArray(prev) ? prev.slice() : []
+            let found = false
+            const mapped = arr.map(u => {
+              try {
+                if (norm(u.username) === norm(uname)) {
+                  found = true
+                  return Object.assign({}, u, { online: !!online, lastSeen: lastSeen || (online ? u.lastSeen : Date.now()) })
                 }
-                copy[current] = updatedList
-                // update visible contacts immutably
-                setContacts(prevContacts => {
-                  if (!Array.isArray(prevContacts)) return updatedList
-                  const has = prevContacts.some(pc => norm(pc.username) === norm(user))
-                  if (!has) return [...prevContacts, { username: user, online, last_seen: lastSeen }]
-                  return prevContacts.map(pc => norm(pc.username) === norm(user) ? Object.assign({}, pc, { online, last_seen: lastSeen }) : pc)
-                })
-                console.log('CONTACTS (byUser):', copy[current])
-                return copy
-              })
-            }
-            // Update users/usuarios lists (exclude current)
-            setUsers(prev => {
-              const curr = usernameRef.current
-              const set = new Set(Array.isArray(prev) ? prev : [])
-              if (norm(user) !== (curr || '')) set.add(user)
-              return Array.from(set)
+              } catch (e) {}
+              return u
             })
-            // legacy usuarios state removed; `users` holds the canonical list
-            // update status map for this user
-            try {
-              setStatus(prev => {
-                const copy = Object.assign({}, prev || {})
-                const uname = (typeof user === 'string' ? user : (user.username || user.nombre || '')).toString()
-                if (!uname) return copy
-                copy[uname] = { online: !!online, lastSeen: lastSeen || (online ? null : Date.now()) }
-                return copy
-              })
-            } catch (e) {}
-          }
+            if (!found && norm(uname) !== (current || '')) {
+              mapped.push({ username: uname, online: !!online, lastSeen: lastSeen || (online ? null : Date.now()) })
+            }
+            return mapped
+          })
         } catch (e) { console.error('Error procesando STATUS', e) }
         return
       }
@@ -357,22 +296,7 @@ export default function useWebSocket() {
         return
       }
 
-      if (mensaje === 'CONECTADOS') {
-        if (Array.isArray(data)) {
-          const map = new Map()
-          for (const u of data) {
-            const name = (typeof u === 'string' ? u : (u.nombre || u.name || u.id || '')).toString()
-            const key = norm(name)
-            if (!map.has(key)) map.set(key, name)
-          }
-          const names = Array.from(map.values())
-          const current = usernameRef.current
-          const filtered = names.filter(n => norm(n) !== (current || ''))
-          setUsers(filtered)
-          console.log('USERS', names)
-        } else setUsers([])
-        return
-      }
+      // legacy CONECTADOS handled above as type 'users'
 
       if (mensaje === 'GRUPOS') {
         const current = usernameRef.current
@@ -432,22 +356,7 @@ export default function useWebSocket() {
         return
       }
 
-      if (mensaje === 'USERS') {
-        if (Array.isArray(data)) {
-          const map = new Map()
-          for (const u of data) {
-            const name = (typeof u === 'string' ? u : (u.nombre || u.name || u.id || '')).toString()
-            const key = norm(name)
-            if (!map.has(key)) map.set(key, name)
-          }
-          const names = Array.from(new Set([...(Array.from(map.values())), ...(Array.isArray(users) ? users : [])]))
-          const current = usernameRef.current
-          const filtered = names.filter(n => norm(n) !== (current || ''))
-          setUsers(filtered)
-          setUsers(filtered)
-        }
-        return
-      }
+      
 
       if (mensaje === 'CHAT') {
         const id = data.id || data.id_mensaje || null
@@ -695,7 +604,7 @@ export default function useWebSocket() {
       if (!dbRef.current || !contactId) return false
       await dbRef.current.deleteContactAndMessages(contactId)
       // update UI state: remove contact, remove messages
-      setUsers(prev => (Array.isArray(prev) ? prev.filter(u => u !== contactId) : []))
+      setUsers(prev => (Array.isArray(prev) ? prev.filter(u => (u && u.username ? u.username : u) !== contactId) : []))
       setMessages(prev => (Array.isArray(prev) ? prev.filter(m => !(m.tipo === 'privado' && (m.emisor === contactId || m.receptor === contactId))) : []))
       return true
     } catch (e) { console.error('deleteContact error', e); return false }
@@ -705,24 +614,7 @@ export default function useWebSocket() {
     if (!username) return false
     const uname = (username || '').toString().trim()
     const id = norm(uname)
-    // update local state
-    const me = usernameRef.current
-    if (me) {
-      setContactsByUser(prev => {
-        const copy = Object.assign({}, prev || {})
-        const list = Array.isArray(copy[me]) ? copy[me].slice() : (Array.isArray(contacts) ? contacts.slice() : [])
-        if (list.find(c => norm(c.username) === id)) return copy
-        list.push({ username: uname, online: false, last_seen: null })
-        copy[me] = list
-        return copy
-      })
-      setContacts(prev => {
-        const list = Array.isArray(prev) ? prev.slice() : []
-        if (list.find(c => norm(c.username) === id)) return prev
-        return [...list, { username: uname, online: false, last_seen: null }]
-      })
-    }
-
+    // In users-first design, avoid local contact stores; request server to add contact if connected
     // If connected, ask server to add contact (will validate existence and create mutual links)
     try {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -768,7 +660,7 @@ export default function useWebSocket() {
       const oldName = (existing && existing.nombre) ? existing.nombre : contactId
       await dbRef.current.renameContact(contactId, newName)
       // update UI lists
-      setUsers(prev => Array.isArray(prev) ? prev.map(u => (u === oldName ? newName : u)) : prev)
+      setUsers(prev => Array.isArray(prev) ? prev.map(u => (u && u.username === oldName ? Object.assign({}, u, { username: newName }) : u)) : prev)
       setMessages(prev => Array.isArray(prev) ? prev.map(m => {
         if (!m) return m
         if (m.tipo === 'privado') {
@@ -783,6 +675,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuariosInfo, status, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, groups, messages, groupsByUser, dbReady }
 
 }

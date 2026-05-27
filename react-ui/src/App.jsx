@@ -19,8 +19,6 @@ export default function App() {
     sendChat,
     connected,
     users,
-    usuariosInfo,
-    status,
     groups,
     messages,
     sendReadReceipt,
@@ -31,8 +29,6 @@ export default function App() {
     renameGroup,
     renameContact,
     addContact,
-    contacts,
-    contactsByUser,
     groupsByUser,
     dbReady
   } = useWebSocket()
@@ -112,8 +108,6 @@ export default function App() {
 
             <UsersList
               users={users}
-              usuariosInfo={usuariosInfo}
-              status={status}
               usuarioSeleccionado={usuarioSeleccionado}
               onSelect={handleSelectChat}
               usuarioActual={usuarioActual}
@@ -150,7 +144,7 @@ export default function App() {
       </div>
       {showCreateGroupModal && (
         <CreateGroupModal
-          contacts={contacts}
+          users={users}
           currentUser={usuarioActual}
           onClose={() => setShowCreateGroupModal(false)}
           onCreate={(payload) => {

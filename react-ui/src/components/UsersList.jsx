@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ users: usersProp = [], usuariosInfo = {}, status = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
+export default function UsersList({ users: usersProp = [], usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
@@ -51,7 +51,7 @@ export default function UsersList({ users: usersProp = [], usuariosInfo = {}, st
   }, [usuarioActual, groups])
 
   // determine list of users to display (prefer `users` prop)
-  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : Object.keys(usuariosInfo || {})
+  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : []
   const grupos = Array.isArray(groups) ? groups : []
 
   const formatLastSeen = (ts) => {
@@ -72,33 +72,35 @@ export default function UsersList({ users: usersProp = [], usuariosInfo = {}, st
       <h3>{activeTab === 'todos' ? 'Todos' : activeTab === 'personas' ? 'Personas' : 'Grupos'}</h3>
       <ul>
         {activeTab === 'todos' && (Array.isArray(localUsers) ? localUsers : []).map((u, i) => {
-          const name = String(u).trim()
-          const st = status && (status[name] || status[name.toLowerCase()]) ? (status[name] || status[name.toLowerCase()]) : null
+          const name = (u && u.username) ? u.username : (u || '').toString()
+          const online = u && typeof u.online !== 'undefined' ? !!u.online : false
+          const lastSeen = u && (u.lastSeen || u.last_seen) ? (u.lastSeen || u.last_seen) : null
           return (
             <li key={`u-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
               <div className="user-item" onClick={() => onSelect(name)}>
                 <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
                 <div className="meta"><div className="name">{name}</div></div>
                 <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  <div className={`dot ${st && st.online ? 'online' : 'offline'}`} />
-                  <div className="user-status">{st && st.online ? 'En línea' : `Últ. vez ${formatLastSeen(st && st.lastSeen)}`}</div>
+                  <div className={`dot ${online ? 'online' : 'offline'}`} />
+                  <div className="user-status">{online ? 'En línea' : `Últ. vez ${formatLastSeen(lastSeen)}`}</div>
                 </div>
               </div>
             </li>
           )
         })}
 
-        {activeTab === 'personas' && (Array.isArray(localUsers) ? localUsers.filter(u => u !== usuarioActual) : []).map((u, i) => {
-          const name = String(u).trim()
-          const st = status && (status[name] || status[name.toLowerCase()]) ? (status[name] || status[name.toLowerCase()]) : null
+        {activeTab === 'personas' && (Array.isArray(localUsers) ? localUsers.filter(u => ((u && u.username) ? u.username : u) !== usuarioActual) : []).map((u, i) => {
+          const name = (u && u.username) ? u.username : (u || '').toString()
+          const online = u && typeof u.online !== 'undefined' ? !!u.online : false
+          const lastSeen = u && (u.lastSeen || u.last_seen) ? (u.lastSeen || u.last_seen) : null
           return (
             <li key={`p-${i}`} className={usuarioSeleccionado === name ? 'selected' : ''}>
               <div className="user-item" onClick={() => onSelect({ tipo: 'privado', nombre: name })}>
                 <div className="avatar">{String(name).charAt(0).toUpperCase()}</div>
                 <div className="meta"><div className="name">{name}</div></div>
                 <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  <div className={`dot ${st && st.online ? 'online' : 'offline'}`} />
-                  <div className="user-status">{st && st.online ? 'En línea' : `Últ. vez ${formatLastSeen(st && st.lastSeen)}`}</div>
+                  <div className={`dot ${online ? 'online' : 'offline'}`} />
+                  <div className="user-status">{online ? 'En línea' : `Últ. vez ${formatLastSeen(lastSeen)}`}</div>
                 </div>
               </div>
             </li>
