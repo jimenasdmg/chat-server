@@ -4,9 +4,8 @@ import { chatBD } from './chatDB'
 export default function useWebSocket() {
   const wsRef = useRef(null)
   const [connected, setConnected] = useState(false)
-  const [usuarios, setUsuarios] = useState([])
-  const [usuariosInfo, setUsuariosInfo] = useState({})
   const [users, setUsers] = useState([])
+  const [usuariosInfo, setUsuariosInfo] = useState({})
   const [status, setStatus] = useState({})
   const [groups, setGroups] = useState([])
   // per-user maps to avoid cross-user clobbering
@@ -210,9 +209,7 @@ export default function useWebSocket() {
           const info = {}
           for (const u of normalized) info[u.username] = u
           setUsuariosInfo(info)
-          // keep legacy usuarios state too
-          setUsuarios(filtered)
-          setUsers(filtered)
+          // keep usuariosInfo updated; users state already set
           console.log('USERS', normalized)
         } catch (e) { console.error('Error procesando USERS', e) }
         return
@@ -265,12 +262,7 @@ export default function useWebSocket() {
               if (norm(user) !== (curr || '')) set.add(user)
               return Array.from(set)
             })
-            setUsuarios(prev => {
-              const curr = usernameRef.current
-              const set = new Set(Array.isArray(prev) ? prev : [])
-              if (norm(user) !== (curr || '')) set.add(user)
-              return Array.from(set)
-            })
+            // legacy usuarios state removed; `users` holds the canonical list
             // update status map for this user
             try {
               setStatus(prev => {
@@ -376,9 +368,9 @@ export default function useWebSocket() {
           const names = Array.from(map.values())
           const current = usernameRef.current
           const filtered = names.filter(n => norm(n) !== (current || ''))
-          setUsuarios(filtered)
+          setUsers(filtered)
           console.log('USERS', names)
-        } else setUsuarios([])
+        } else setUsers([])
         return
       }
 
@@ -448,10 +440,10 @@ export default function useWebSocket() {
             const key = norm(name)
             if (!map.has(key)) map.set(key, name)
           }
-          const names = Array.from(new Set([...(Array.from(map.values())), ...(Array.isArray(usuarios) ? usuarios : [])]))
+          const names = Array.from(new Set([...(Array.from(map.values())), ...(Array.isArray(users) ? users : [])]))
           const current = usernameRef.current
           const filtered = names.filter(n => norm(n) !== (current || ''))
-          setUsuarios(filtered)
+          setUsers(filtered)
           setUsers(filtered)
         }
         return
@@ -582,7 +574,7 @@ export default function useWebSocket() {
 
     ws.onclose = () => {
       setConnected(false)
-      setUsuarios([])
+      setUsers([])
       // do NOT persist contacts in IndexedDB on close
     }
 
@@ -595,7 +587,7 @@ export default function useWebSocket() {
     if (wsRef.current) wsRef.current.close()
     wsRef.current = null
     setConnected(false)
-    setUsuarios([])
+    setUsers([])
   }, [])
 
   const sendChat = useCallback((receptor, texto, emisorName) => {
@@ -639,7 +631,7 @@ export default function useWebSocket() {
         : { mensaje: 'CHAT', data: { receptor: receptor, mensaje: texto, emisor: em, clientId } }
 
     wsRef.current.send(JSON.stringify(payload))
-  }, [usuarios, groups])
+  }, [users, groups])
 
   const sendReadReceipt = useCallback((id_mensaje, originalEmisor, lector) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
@@ -703,7 +695,7 @@ export default function useWebSocket() {
       if (!dbRef.current || !contactId) return false
       await dbRef.current.deleteContactAndMessages(contactId)
       // update UI state: remove contact, remove messages
-      setUsuarios(prev => (Array.isArray(prev) ? prev.filter(u => u !== contactId) : []))
+      setUsers(prev => (Array.isArray(prev) ? prev.filter(u => u !== contactId) : []))
       setMessages(prev => (Array.isArray(prev) ? prev.filter(m => !(m.tipo === 'privado' && (m.emisor === contactId || m.receptor === contactId))) : []))
       return true
     } catch (e) { console.error('deleteContact error', e); return false }
@@ -776,7 +768,7 @@ export default function useWebSocket() {
       const oldName = (existing && existing.nombre) ? existing.nombre : contactId
       await dbRef.current.renameContact(contactId, newName)
       // update UI lists
-      setUsuarios(prev => Array.isArray(prev) ? prev.map(u => (u === oldName ? newName : u)) : prev)
+      setUsers(prev => Array.isArray(prev) ? prev.map(u => (u === oldName ? newName : u)) : prev)
       setMessages(prev => Array.isArray(prev) ? prev.map(m => {
         if (!m) return m
         if (m.tipo === 'privado') {
@@ -791,6 +783,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuarios, usuariosInfo, status, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, usuariosInfo, status, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
 
 }

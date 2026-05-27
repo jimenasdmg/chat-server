@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ users: usersProp = [], usuarios, usuariosInfo = {}, status = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
+export default function UsersList({ users: usersProp = [], usuariosInfo = {}, status = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
@@ -51,7 +51,7 @@ export default function UsersList({ users: usersProp = [], usuarios, usuariosInf
   }, [usuarioActual, groups])
 
   // determine list of users to display (prefer `users` prop)
-  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : ((Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {}))
+  const localUsers = (Array.isArray(usersProp) && usersProp.length) ? usersProp : Object.keys(usuariosInfo || {})
   const grupos = Array.isArray(groups) ? groups : []
 
   const formatLastSeen = (ts) => {
@@ -66,7 +66,7 @@ export default function UsersList({ users: usersProp = [], usuarios, usuariosInf
       </div>
       <div className="tabs">
         <button className={`tab ${activeTab === 'todos' ? 'active' : ''}`} onClick={() => { setActiveTab('todos'); onSelect('Todos') }}>Todos</button>
-        <button className={`tab ${activeTab === 'personas' ? 'active' : ''}`} onClick={() => { setActiveTab('personas'); const first = usuarios.find(u => u !== usuarioActual); if (first) onSelect(first) }}>Personas</button>
+        <button className={`tab ${activeTab === 'personas' ? 'active' : ''}`} onClick={() => { setActiveTab('personas'); const first = localUsers.find(u => u !== usuarioActual); if (first) onSelect(first) }}>Personas</button>
         <button className={`tab ${activeTab === 'grupos' ? 'active' : ''}`} onClick={() => { setActiveTab('grupos'); const firstG = (groups || [])[0]; if (firstG) onSelect(firstG) }}>Grupos</button>
       </div>
       <h3>{activeTab === 'todos' ? 'Todos' : activeTab === 'personas' ? 'Personas' : 'Grupos'}</h3>

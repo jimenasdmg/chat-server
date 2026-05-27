@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import MessageBubble from './MessageBubble'
 
-export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsuarioSeleccionado, usuarios, groups = [], mensajes, onSend, onMarkAsRead, loadMessagesFor, clearUnread, leaveGroup, deleteContact, renameGroup, renameContact, contacts = [] }) {
+export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsuarioSeleccionado, users = [], groups = [], mensajes, onSend, onMarkAsRead, loadMessagesFor, clearUnread, leaveGroup, deleteContact, renameGroup, renameContact, contacts = [] }) {
   const [texto, setTexto] = useState('')
   const mensajesArea = useRef(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -109,7 +109,7 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
             <div className="header-title">{usuarioSeleccionado || 'Todos'}</div>
             {(usuarioSeleccionado && usuarioSeleccionado !== 'Todos') && (() => {
               const c = (contacts || []).find(x => (x.username || '').toString().trim().toLowerCase() === (usuarioSeleccionado||'').toString().trim().toLowerCase())
-              const online = c ? !!c.online : (usuarios || []).includes(usuarioSeleccionado)
+              const online = c ? !!c.online : (users || []).includes(usuarioSeleccionado)
               const lastSeen = c ? c.last_seen : null
               return (<div style={{fontSize:13, color: online ? '#22c55e' : '#888'}}>{online ? 'En línea' : `Últ. vez ${lastSeen ? new Date(lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}`}</div>)
             })()}

@@ -112,7 +112,6 @@ export default function App() {
 
             <UsersList
               users={users}
-              usuarios={usuarios}
               usuariosInfo={usuariosInfo}
               status={status}
               usuarioSeleccionado={usuarioSeleccionado}
@@ -133,7 +132,7 @@ export default function App() {
               usuarioActual={usuarioActual}
               usuarioSeleccionado={usuarioSeleccionado}
               setUsuarioSeleccionado={setUsuarioSeleccionado}
-                usuarios={users}
+                users={users}
                 groups={groups}
               mensajes={messages}
               onSend={sendChat}
