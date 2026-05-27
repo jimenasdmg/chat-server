@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
+export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccionado, onSelect, usuarioActual, mensajes = [], onCreateGroup, groups = [], unread = {}, onOpenCreateGroup }) {
   const norm = (s) => (s || '').toString().trim().toLowerCase()
   const [contactsMap, setContactsMap] = useState({})
   const [activeTab, setActiveTab] = useState('todos') // 'todos' | 'personas' | 'grupos'
@@ -94,15 +94,18 @@ export default function UsersList({ usuarios, usuarioSeleccionado, onSelect, usu
           )
         })()}
 
-        {activeTab === 'personas' && usuarios.filter(u => u !== usuarioActual && !(groups || []).includes(u)).map((u, i) => {
+        {activeTab === 'personas' && (() => {
+          const usersList = (Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {})
+          return usersList.filter(u => u !== usuarioActual && !(groups || []).includes(u)).map((u, i) => {
           const contact = contactsMap[u] || null
           const last = lastFor(u)
           const lastEmNorm = last ? (last.emisorNorm || (last.emisor || '').toString().trim().toLowerCase()) : null
           const usuarioNorm = (usuarioActual || '').toString().trim().toLowerCase()
           const preview = last ? (lastEmNorm === usuarioNorm ? `Tú: ${last.mensaje}` : `${last.emisor}: ${last.mensaje}`) : ''
           const unreadCount = unread[u] || 0
-          const isOnline = Array.isArray(usuarios) ? usuarios.includes(u) : false
-          const lastSeen = contact ? contact.lastSeen : (last ? last.ts : null)
+          const info = (usuariosInfo && usuariosInfo[u]) ? usuariosInfo[u] : null
+          const isOnline = info ? !!info.online : (Array.isArray(usuarios) ? usuarios.includes(u) : false)
+          const lastSeen = info ? info.last_seen : (contact ? contact.lastSeen : (last ? last.ts : null))
           return (
             <li
               key={`${u}-${i}`}

@@ -5,6 +5,7 @@ export default function useWebSocket() {
   const wsRef = useRef(null)
   const [connected, setConnected] = useState(false)
   const [usuarios, setUsuarios] = useState([])
+  const [usuariosInfo, setUsuariosInfo] = useState({})
   const [groups, setGroups] = useState([])
   // per-user maps to avoid cross-user clobbering
   const [contactsByUser, setContactsByUser] = useState({})
@@ -194,6 +195,27 @@ export default function useWebSocket() {
               setContactsForCurrent(current, Array.from(filtered))
               console.log('CONTACTS', filtered)
         } catch (e) { console.error('Error procesando CONTACTS', e) }
+        return
+      }
+
+      // New: server can send a rich USERS list (objects with username, online, last_seen)
+      if (mensaje === 'USERS') {
+        try {
+          const arr = Array.isArray(data) ? data : []
+          const normalized = arr.map(u => {
+            if (!u) return null
+            if (typeof u === 'string') return { username: u, online: false, last_seen: null }
+            return { username: u.username || u.nombre || u.name || (u.id || ''), online: !!u.online, last_seen: u.last_seen || u.lastSeen || null }
+          }).filter(Boolean)
+          const names = normalized.map(u => u.username)
+          // update simple users list (strings) for existing components
+          setUsuarios(names)
+          // update rich info map
+          const info = {}
+          for (const u of normalized) info[u.username] = u
+          setUsuariosInfo(info)
+          console.log('USERS', normalized)
+        } catch (e) { console.error('Error procesando USERS', e) }
         return
       }
 
@@ -748,6 +770,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, usuarios, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, usuarios, usuariosInfo, groups, messages, contacts, contactsByUser, groupsByUser, dbReady }
 
 }

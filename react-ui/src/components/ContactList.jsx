@@ -78,11 +78,12 @@ export default function ContactList({ contacts = [], contactsByUser = {}, groups
       </div>
 
       <div style={{marginTop:8, display:'flex', flexDirection:'column', gap:8}}>
-        <input placeholder="Buscar contacto..." value={filter} onChange={(e) => setFilter(e.target.value)} style={{padding:8,borderRadius:8,border:'1px solid #e6edf6'}} />
-        <button className="btn add-contact-btn" onClick={() => { if (typeof onOpenAddContact === 'function') { onOpenAddContact() } else { setNewContact(''); handleAdd() }}} style={{height:42,borderRadius:12}}>+ Agregar contacto</button>
       </div>
+          <input placeholder="Buscar usuario..." value={filter} onChange={(e) => setFilter(e.target.value)} style={{padding:8,borderRadius:8,border:'1px solid #e6edf6'}} />
+          <button className="btn add-contact-btn" style={{height:42,borderRadius:12, display:'none'}}>+ Agregar contacto</button>
+        </div>
 
-      <h3 style={{marginTop:12, marginBottom:6}}>CONTACTOS</h3>
+        <h3 style={{marginTop:12, marginBottom:6}}>USUARIOS</h3>
 
       <ul>
         {(!dbReady && (!contacts || contacts.length === 0)) ? (

@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import useWebSocket from './useWebSocket'
 import ConnectionPanel from './components/ConnectionPanel'
 import UsersList from './components/UsersList'
-import ContactList from './components/ContactList'
 import ChatWindow from './components/ChatWindow'
 import AddContactModal from './components/AddContactModal'
 import CreateGroupModal from './components/CreateGroupModal'
@@ -21,6 +20,7 @@ export default function App() {
     sendChat,
     connected,
     usuarios,
+    usuariosInfo,
     groups,
     messages,
     sendReadReceipt,
@@ -95,34 +95,21 @@ export default function App() {
               connected={connected}
             />
 
-            <ContactList
-              contacts={contacts}
-              contactsByUser={contactsByUser}
-              groupsByUser={groupsByUser}
-              currentUser={usuarioActual}
+            <UsersList
               usuarios={usuarios}
-              username={username}
-              dbReady={dbReady}
-              grupos={groups}
-              groups={groups}
+              usuariosInfo={usuariosInfo}
               usuarioSeleccionado={usuarioSeleccionado}
               onSelect={setUsuarioSeleccionado}
               usuarioActual={usuarioActual}
               mensajes={messages}
               onCreateGroup={createGroup}
-              onOpenCreateGroup={() => setShowCreateGroupModal(true)}
+              groups={groups}
               unread={unread}
-              addContact={addContact}
-              onOpenAddContact={() => setShowAddContactModal(true)}
+              onOpenCreateGroup={() => setShowCreateGroupModal(true)}
             />
           </aside>
 
-          {showAddContactModal && (
-            <AddContactModal
-              onClose={() => { setShowAddContactModal(false) }}
-              onAdd={(username) => { if (typeof addContact === 'function') addContact(username) }}
-            />
-          )}
+          {/* Add contact modal intentionally hidden in users-first UI */}
 
           <section className="chat">
             <ChatWindow
