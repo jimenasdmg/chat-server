@@ -144,32 +144,16 @@ const storage = {
       )
       const id = res.insertId
 
-      // NUEVO: crear contacto mutuo automático usando IDs si están disponibles
-      try {
-        if (tipo === 'privado' && !msg.broadcast) {
-          if (emisorId && receptorId) {
-            try {
-              await this.addContact(emisorId, receptorId)
-              await this.addContact(receptorId, emisorId)
-            } catch (e) { /* ignore contact errors */ }
-          }
-        }
-      } catch (e) { /* ignore */ }
+      console.log("CREANDO CONTACTOS", emisorId, receptorId)
 
-      // Automatic contact linking for first private message between users
-      try {
-        if (tipo === 'privado' && !msg.broadcast && msg.emisor) {
-          const targets = Array.isArray(msg.receptor) ? msg.receptor : [msg.receptor]
-          for (const t of targets) {
-            if (!t) continue
-            try {
-              // create both directions if not exist
-              await this.addContact(msg.emisor, t)
-              await this.addContact(t, msg.emisor)
-            } catch (e) { /* ignore contact errors */ }
-          }
-        }
-      } catch (e) { /* ignore */ }
+      if (
+        tipo === "privado" &&
+        emisorId &&
+        receptorId
+      ) {
+        await this.addContact(emisorId, receptorId)
+        await this.addContact(receptorId, emisorId)
+      }
 
       if (tipo === 'privado' && msg.broadcast) {
         const [users] = await db.execute('SELECT id FROM usuarios')
@@ -411,11 +395,16 @@ const storage = {
       if (!uid || !cid) return
 
       // avoid duplicates: atomic insert-if-not-exists
+      console.log(
+        "INSERT CONTACTO",
+        uid,
+        cid
+      )
       try {
         await db.execute(`INSERT INTO contactos (usuario_id, contacto_id, created_at)
           SELECT ?, ?, NOW() FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM contactos WHERE usuario_id = ? AND contacto_id = ?)`, [uid, cid, uid, cid])
       } catch (e) {
-        try { await db.execute('INSERT INTO contactos (usuario_id, contacto_id, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE usuario_id = usuario_id', [uid, cid]) } catch (e2) { /* ignore */ }
+        try { await db.execute('INSERT INTO contactos (usuario_id, contacto_id, created_at) VALUES (?, ?, NOW()) ON DUPLICATE KEY UPDATE usuario_id = usuario_id', [uid, cid]) } catch (e2) { console.error(e2) }
       }
     } catch (e) {
       console.error('storage:addContact error', e)
