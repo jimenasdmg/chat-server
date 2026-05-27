@@ -50,6 +50,10 @@ export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccio
     console.log('GROUPS USER', groups)
   }, [usuarioActual, groups])
 
+  // aliases used by rendering blocks
+  const users = (Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {})
+  const grupos = Array.isArray(groups) ? groups : []
+
   return (
     <aside className="users sidebar">
       <div style={{display:'flex', gap:8, alignItems:'center'}}>
@@ -94,41 +98,24 @@ export default function UsersList({ usuarios, usuariosInfo = {}, usuarioSeleccio
           )
         })()}
 
-        {activeTab === 'personas' && (() => {
-          const usersList = (Array.isArray(usuarios) && usuarios.length) ? usuarios : Object.keys(usuariosInfo || {})
-          return usersList.filter(u => u !== usuarioActual && !(groups || []).includes(u)).map((u, i) => {
-          const contact = contactsMap[u] || null
-          const last = lastFor(u)
-          const lastEmNorm = last ? (last.emisorNorm || (last.emisor || '').toString().trim().toLowerCase()) : null
-          const usuarioNorm = (usuarioActual || '').toString().trim().toLowerCase()
-          const preview = last ? (lastEmNorm === usuarioNorm ? `Tú: ${last.mensaje}` : `${last.emisor}: ${last.mensaje}`) : ''
-          const unreadCount = unread[u] || 0
-          const info = (usuariosInfo && usuariosInfo[u]) ? usuariosInfo[u] : null
-          const isOnline = info ? !!info.online : (Array.isArray(usuarios) ? usuarios.includes(u) : false)
-          const lastSeen = info ? info.last_seen : (contact ? contact.lastSeen : (last ? last.ts : null))
-          return (
-            <li
-              key={`${u}-${i}`}
-              className={usuarioSeleccionado === u ? 'selected' : ''}
-            >
-              <div className="user-item" onClick={() => onSelect(u)}>
-                <div className="avatar">{String(u).charAt(0).toUpperCase()}</div>
-                <div className="meta">
-                  <div className="name">{u}</div>
-                  <div className="sub">{preview || (isOnline ? 'En línea' : 'Desconectado')}</div>
-                </div>
-                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  {unreadCount > 0 && <div className="badge">{unreadCount}</div>}
-                  <div className={`dot ${isOnline ? 'online' : 'offline'}`} />
-                  <div className="time">{lastSeen ? fmtTime(lastSeen) : ''}</div>
-                </div>
-              </div>
-            </li>
-          )
-        })()}
+        {activeTab === 'usuarios' &&
+        (Array.isArray(users) ? users : []).map((u, i) => {
 
-        {activeTab === 'grupos' && (Array.isArray(groups) ? groups : []).map((g, i) => {
-          const groupName = String(g).toString().trim()
+          const name = String(u).trim()
+
+          return (
+            <div
+              key={i}
+              onClick={() => onSelect(name)}
+            >
+              {name}
+            </div>
+          )
+
+        })}
+
+        {activeTab === 'grupos' && (Array.isArray(grupos) ? grupos : []).map((g, i) => {
+          const groupName = String(g).trim()
           const last = lastFor(groupName)
           const lastEmNormG = last ? (last.emisorNorm || (last.emisor || '').toString().trim().toLowerCase()) : null
           const preview = last ? (lastEmNormG === (usuarioActual||'').toString().trim().toLowerCase() ? `Tú: ${last.mensaje}` : `${last.emisor}: ${last.mensaje}`) : ''
