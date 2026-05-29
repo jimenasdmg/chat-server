@@ -108,10 +108,18 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
           <div style={{display:'flex',flexDirection:'column'}}>
             <div className="header-title">{usuarioSeleccionado || 'Todos'}</div>
             {(usuarioSeleccionado && usuarioSeleccionado !== 'Todos') && (() => {
-              const c = (contacts || []).find(x => (x.username || '').toString().trim().toLowerCase() === (usuarioSeleccionado||'').toString().trim().toLowerCase())
-              const online = c ? !!c.online : (Array.isArray(users) ? users.some(u => (u && u.username || '').toString().trim().toLowerCase() === (usuarioSeleccionado||'').toString().trim().toLowerCase()) : false)
-              const lastSeen = c ? c.last_seen : null
-              return (<div style={{fontSize:13, color: online ? '#22c55e' : '#888'}}>{online ? 'En línea' : `Últ. vez ${lastSeen ? new Date(lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}`}</div>)
+                const seleccionadoNorm = (usuarioSeleccionado||'').toString().trim().toLowerCase()
+                const c = (contacts || []).find(x => (x.username || '').toString().trim().toLowerCase() === seleccionadoNorm)
+                if (c) {
+                  const online = !!c.online
+                  const lastSeen = c.last_seen || c.lastSeen || null
+                  return (<div style={{fontSize:13, color: online ? '#22c55e' : '#888'}}>{online ? 'En línea' : `Últ. vez ${lastSeen ? new Date(lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}`}</div>)
+                }
+                // fallback: buscar en users y tomar su estado y lastSeen
+                const found = (Array.isArray(users) ? users.find(u => (u && u.username || '').toString().trim().toLowerCase() === seleccionadoNorm) : null)
+                const online = found ? !!found.online : false
+                const lastSeen = found ? (found.lastSeen || found.last_seen || null) : null
+                return (<div style={{fontSize:13, color: online ? '#22c55e' : '#888'}}>{online ? 'En línea' : `Últ. vez ${lastSeen ? new Date(lastSeen).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}`}</div>)
             })()}
           </div>
         </div>
