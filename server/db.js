@@ -1,16 +1,20 @@
 import 'dotenv/config'
 import mysql from "mysql2/promise";
 
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DB_USER:", process.env.DB_USER);
-console.log("DB_NAME:", process.env.DB_NAME);
+const dbConfig = {
+    host: process.env.DB_HOST || process.env.MYSQLHOST,
+    user: process.env.DB_USER || process.env.MYSQLUSER,
+    password: process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || process.env.MYSQL_ROOT_PASSWORD,
+    database: process.env.DB_NAME || process.env.MYSQLDATABASE || process.env.MYSQL_DATABASE,
+    port: parseInt(process.env.DB_PORT || process.env.MYSQLPORT || "3306", 10),
+}
+
+console.log("DB_HOST:", dbConfig.host);
+console.log("DB_USER:", dbConfig.user);
+console.log("DB_NAME:", dbConfig.database);
 
 const db = mysql.createPool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: parseInt(process.env.DB_PORT || "3306"),
+    ...dbConfig,
 
     waitForConnections: true,
     connectionLimit: 10,

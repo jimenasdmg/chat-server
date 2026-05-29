@@ -6,6 +6,7 @@
 	"description": "Desarrollo Web Avanzado",
 	"scripts": {
 		"start": "node wsServerClass.js",
+		"db:init": "node crearTablas.js",
 		"mario": "node wsClienteClass.js Mario",
 		"carlos": "node wsClienteClass.js Carlos",
 		"sergio": "node wsClienteClass.js Sergio",

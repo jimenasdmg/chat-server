@@ -42,7 +42,7 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
     }
   }, [usuarioSeleccionado, usuarioActual, onSelect])
 
-  // contactsMap from IndexedDB removed: do not use IndexedDB for contacts
+  // Contacts are driven by the server-provided users list.
 
   useEffect(() => {
     console.log('USER', usuarioActual)

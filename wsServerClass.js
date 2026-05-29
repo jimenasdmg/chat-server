@@ -114,8 +114,8 @@ class wsServer {
 		console.log("ENTRÓ CHAT")
 		console.log("DATA CHAT:", data)
 		if(data) {
-			const emisor = ws.data,
-			{receptor, mensaje, clientId} = data || {}
+			const emisor = ws.data
+			let { receptor, mensaje, clientId } = data || {}
 
 			// Detectar si el receptor corresponde a un grupo
 			let groupName = null
@@ -279,6 +279,35 @@ class wsServer {
 		for (const cliente of this.wss.clients) {
 			if (!cliente || !cliente.data) continue
 			this.MSG(cliente, 'GRUPOS', grupos)
+		}
+	}
+
+	async LEAVE_GROUP(ws, data) {
+		try {
+			const grupo = typeof data === 'string' ? data : (data && (data.grupo || data.nombreGrupo || data.nombre))
+			if (!grupo || !ws.data) return this.MSG(ws, 'ERROR', 'Grupo no especificado')
+			await storage.removeUserFromGroup(grupo, ws.data)
+			this.MSG(ws, 'GRUPOS', await storage.getGroups(ws.data))
+		} catch (e) {
+			console.error('LEAVE_GROUP error', e)
+			this.MSG(ws, 'ERROR', 'No se pudo salir del grupo')
+		}
+	}
+
+	async RENAME_GROUP(ws, data) {
+		try {
+			if (!data) return
+			const oldName = data.oldName || data.actual || data.grupo
+			const newName = data.newName || data.nuevo || data.nombre
+			if (!oldName || !newName) return this.MSG(ws, 'ERROR', 'Datos de grupo incompletos')
+			await storage.renameGroup(oldName, newName)
+			for (const cliente of this.wss.clients) {
+				if (!cliente || !cliente.data) continue
+				this.MSG(cliente, 'GRUPOS', await storage.getGroups(cliente.data))
+			}
+		} catch (e) {
+			console.error('RENAME_GROUP error', e)
+			this.MSG(ws, 'ERROR', 'No se pudo renombrar el grupo')
 		}
 	}
 

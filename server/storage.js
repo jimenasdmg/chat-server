@@ -2,39 +2,7 @@ import { db } from './db.js'
 
 const storage = {
   async init() {
-    try {
-      await this._ensureContactUniqueness()
-    } catch (e) {
-      console.error('storage.init error ensuring contact uniqueness:', e)
-    }
-  },
-
-  async _ensureContactUniqueness() {
-    try {
-      // remove duplicate rows keeping the lowest id (if id exists)
-      await db.execute(`DELETE c1 FROM contactos c1
-        JOIN contactos c2
-        ON c1.usuario_id = c2.usuario_id
-        AND c1.contacto_id = c2.contacto_id
-        AND c1.id > c2.id`)
-    } catch (e) {
-      // if table or columns don't exist, ignore for now
-      // console.warn('cleanup duplicates skipped:', e.message || e)
-    }
-
-    try {
-      // Check information_schema for an existing unique index named 'uq_contacto'
-      const [idx] = await db.execute(
-        `SELECT COUNT(*) AS cnt FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'contactos' AND index_name = 'uq_contacto'`
-      )
-      const exists = Array.isArray(idx) && idx.length && idx[0] && idx[0].cnt > 0
-      if (!exists) {
-        await db.execute('ALTER TABLE contactos ADD UNIQUE KEY uq_contacto (usuario_id, contacto_id)')
-      }
-    } catch (e) {
-      // ignore errors (constraint may already exist)
-      // console.warn('add unique constraint skipped:', e.message || e)
-    }
+    // initialization hook retained for parity; no contact-table migration performed
   },
 
   async addClient(nombre) {
@@ -79,11 +47,6 @@ const storage = {
     return ins.insertId
   },
 
-  // Ensure a contact link exists (single direction). Will not create users.
-  async ensureContact(usuario, contacto) {
-    if (!usuario || !contacto) return
-    return this.addContact(usuario, contacto)
-  },
 
   // Return array of usernames
   async getAllUsers() {
@@ -300,6 +263,24 @@ const storage = {
     return rows.map(r => r.username)
   },
 
+  async removeUserFromGroup(grupo, usuario) {
+    if (!grupo || !usuario) return false
+    const [grows] = await db.execute('SELECT id FROM grupos WHERE nombre = ?', [grupo])
+    if (!grows || !grows.length) return false
+    const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
+    if (!urows || !urows.length) return false
+    await db.execute('DELETE FROM grupo_integrantes WHERE grupo_id = ? AND usuario_id = ?', [grows[0].id, urows[0].id])
+    return true
+  },
+
+  async renameGroup(oldName, newName) {
+    if (!oldName || !newName) return false
+    const cleanName = String(newName).trim()
+    if (!cleanName) return false
+    const [result] = await db.execute('UPDATE grupos SET nombre = ? WHERE nombre = ?', [cleanName, oldName])
+    return result.affectedRows > 0
+  },
+
   async saveGroupMessage(grupo, emisor, mensaje) {
     if (!grupo || !emisor) return null
     // resolve grupo id
@@ -345,65 +326,7 @@ const storage = {
     const [msgs] = await db.execute('SELECT m.id, u.username AS emisor, m.contenido AS mensaje, m.enviado_at AS ts FROM mensajes m LEFT JOIN usuarios u ON m.emisor_id = u.id WHERE m.grupo_id = ? ORDER BY m.enviado_at ASC', [gid])
     return msgs.map(r => ({ id: r.id, emisor: r.emisor, mensaje: r.mensaje, ts: r.ts }))
   },
-  async getContacts(usuario) {
-    if (!usuario) return []
-    console.log('MariaDB SELECT contacts for', usuario)
-    const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
-    if (!urows || !urows.length) return []
-    const uid = urows[0].id
-    const [rows] = await db.execute('SELECT contacto_id FROM contactos WHERE usuario_id = ?', [uid])
-    const out = []
-    for (const r of rows) {
-      const [crows] = await db.execute('SELECT username, online, last_seen FROM usuarios WHERE id = ?', [r.contacto_id])
-      if (crows && crows.length) {
-        const c = crows[0]
-        out.push({ username: c.username, online: !!c.online, last_seen: c.last_seen })
-      }
-    }
-    return out
-  },
-
-  async addContact(usuario, contacto) {
-    if (!usuario || !contacto) return
-    try {
-      // support both username strings and numeric ids
-      let uid = usuario
-      let cid = contacto
-
-      if (typeof usuario === 'string') {
-        const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
-        if (!urows || !urows.length) return
-        uid = urows[0].id
-      }
-
-      if (typeof contacto === 'string') {
-        const [crows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [contacto])
-        if (!crows || !crows.length) return
-        cid = crows[0].id
-      }
-
-      if (!uid || !cid) return
-
-      // avoid duplicates: simplified insert
-      console.log("INSERT CONTACTO", uid, cid)
-      await db.execute(`
-    INSERT IGNORE INTO contactos(
-     usuario_id,
-     contacto_id
-    )
-    VALUES (?,?)
-    `,[
-     uid,
-     cid
-    ])
-
-      console.log(
-        "CONTACTO INSERTADO"
-      )
-    } catch (e) {
-      console.error('storage:addContact error', e)
-    }
-  },
+  // contact table removed from server-side phase 1; contact links should be managed by application logic if needed
 
   async updateOnline(username, estado) {
     if (!username) return

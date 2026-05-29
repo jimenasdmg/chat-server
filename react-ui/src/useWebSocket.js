@@ -1,5 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
-import { chatBD } from './chatDB'
+import { useState, useRef, useCallback } from 'react'
 
 export default function useWebSocket() {
   const wsRef = useRef(null)
@@ -9,17 +8,10 @@ export default function useWebSocket() {
   // per-user maps to avoid cross-user clobbering
   const [groupsByUser, setGroupsByUser] = useState({})
   const [messages, setMessages] = useState([])
-  const [dbReady, setDbReady] = useState(false)
-
-  const dbRef = useRef(null)
+  const [dbReady] = useState(true)
   const usernameRef = useRef(null)
   const seenIds = useRef(new Set())
   const pending = useRef(new Map()) // clientId -> local message id
-
-  // helper para ejecutar promesas sin await en handlers sincrónicos
-  const fire = (p) => { if (!p) return; if (p.then) p.catch(e => console.error('Promise error (fire):', e)) }
-  // helper para ejecutar promesas sin await en handlers sincrónicos
-  // (nota: la variable 'user' no existe aquí; las referencias a 'user' aparecen sólo en handlers)
 
   const setGroupsForCurrent = (current, arr) => {
     if (!current) return
@@ -28,25 +20,6 @@ export default function useWebSocket() {
     console.log('USER', current)
     console.log('GROUPS USER', { ...(groupsByUser || {}), [current]: arr })
   }
-
-  // Initialize IndexedDB wrapper for messages/groups (not contacts)
-  useEffect(() => {
-    let mounted = true
-    const initDB = async () => {
-      try {
-        const db = new chatBD()
-        await db.init()
-        if (!mounted) return
-        dbRef.current = db
-        setDbReady(true)
-        try { window.chatDB = dbRef.current } catch (e) {}
-      } catch (err) {
-        console.error('No se pudo inicializar IndexedDB:', err)
-      }
-    }
-    initDB()
-    return () => { mounted = false }
-  }, [])
 
   const parse = (text) => {
     try { return JSON.parse(text) } catch { return null }
@@ -74,24 +47,7 @@ export default function useWebSocket() {
       ws.send(JSON.stringify({ mensaje: 'IDENTIFICACION', data: usernameTrim }))
       // do NOT request server-side contacts; UI will use USERS/CONECTADOS/STATUS
 
-      // do NOT persist contacts in IndexedDB
-      // seed groups from local DB so user's groups appear immediately
-      ;(async () => {
-        try {
-            if (dbRef.current && username) {
-            const allGroups = await dbRef.current.getGroups()
-            const visible = Array.isArray(allGroups) ? allGroups.filter(g => {
-              const miembros = Array.isArray(g.integrantes) ? g.integrantes : []
-              const miembrosNorm = miembros.map(x => String(x).trim().toLowerCase())
-              return miembrosNorm.includes(usernameNorm)
-            }) : []
-            const names = visible.map(g => g.id)
-            if (names.length) {
-              setGroupsForCurrent(usernameNorm, Array.from(names))
-            }
-          }
-        } catch (e) { /* no-op */ }
-      })()
+      setGroupsForCurrent(usernameNorm, [])
     }
 
     ws.onmessage = (evt) => {
@@ -123,12 +79,6 @@ export default function useWebSocket() {
         // Si el emisor es el usuario actual, esto es un eco/ack: NO insertar duplicado.
         const currentUser = usernameRef.current
         if (currentUser && item.emisorNorm === currentUser) {
-          // intentar migrar el registro local a la id del servidor si es posible
-          try {
-            if (dbRef.current && item.localId && item.id) {
-              try { dbRef.current.migrateLocalId(item.localId, item.id, item).catch(()=>{}) } catch(e){}
-            }
-          } catch (e) { console.error('Error migrando mensaje local desde echo grupal', e) }
           // actualizar estado local mezclando datos en la entrada optimista
           setMessages(prev => prev.map(m => m.localId === item.localId ? Object.assign({}, m, item) : m))
           return
@@ -144,14 +94,6 @@ export default function useWebSocket() {
           } catch (e) {}
           return [...prev, item]
         })
-            try {
-              if (dbRef.current) {
-                // ensure group exists in local groups store
-                try { dbRef.current.add(item.grupo, []).catch(()=>{}) } catch(e){}
-                // DO NOT persist contacts into IndexedDB (groups are handled separately)
-                dbRef.current.addMessage(item)
-              }
-            } catch (e) { console.error('Error guardando mensaje grupal recibido', e) }
         // ensure UI knows about this group (only for current user)
         try {
           const current = usernameRef.current
@@ -260,12 +202,6 @@ export default function useWebSocket() {
           seenIds.current.add(id)
           const item = Object.assign({}, incoming, { ts: incoming.ts || Date.now(), id, status: 'received', leido: incoming.leido || false })
           setMessages(prev => (prev.some(x => (x.id || x.localId) === id) ? prev : [...prev, item]))
-          try {
-            if (dbRef.current) {
-              // do NOT persist contacts in IndexedDB
-              try { dbRef.current.addMessage(item).catch(()=>{}) } catch(e){}
-            }
-          } catch (e) {}
         }
       }
 
@@ -278,7 +214,6 @@ export default function useWebSocket() {
             setMessages((m) => m.map(msg => msg.localId === localKey ? Object.assign({}, msg, { id, ts: data.ts || Date.now(), status: 'sent' }) : msg))
             pending.current.delete(clientId)
             if (id) seenIds.current.add(id)
-            try { if (dbRef.current) dbRef.current.migrateLocalId(localKey, id, Object.assign({}, data, { ts: data.ts || Date.now() })) } catch (e) { console.error('Error migrando local->server', e) }
           }
         }
         return
@@ -309,28 +244,6 @@ export default function useWebSocket() {
         const names = visible.map(g => (g.nombreGrupo || g.nombre || '').toString().trim())
         setGroupsForCurrent(current, Array.from(names))
         console.log('GROUPS', names)
-
-        try {
-          if (Array.isArray(visible)) {
-            const save = async () => {
-              // esperar a que dbRef.current esté listo (reintentos cortos)
-              for (let i = 0; i < 10; i++) {
-                if (dbRef.current) break
-                await new Promise(r => setTimeout(r, 100))
-              }
-              if (!dbRef.current) return
-              // persist groups separately (will clear and rewrite)
-              try { await dbRef.current.saveGroups(visible) } catch (e) {}
-              // upsert members into contacts store (members only)
-              for (const g of visible) {
-                const integrantes = Array.isArray(g.miembros) ? g.miembros.map(x => String(x).trim()) : []
-                // do NOT persist integrantes as contacts in IndexedDB
-                for (const m of integrantes) { /* noop */ }
-              }
-            }
-            save().catch(e => console.error('Error guardando grupos/miembros en IndexedDB', e))
-          }
-        } catch (e) { console.error(e) }
         return
       }
 
@@ -350,7 +263,6 @@ export default function useWebSocket() {
             })
             try { item.emisorNorm = (item.emisor || '').toString().trim().toLowerCase() } catch(e){}
             setMessages(prev => (prev.some(x => x.id === item.id) ? prev : [...prev, item]))
-            try { if (dbRef.current) dbRef.current.addMessage(item).catch(()=>{}) } catch(e){}
           }
         } catch (e) { console.error('Error procesando PENDING', e) }
         return
@@ -368,7 +280,6 @@ export default function useWebSocket() {
             const idE = data.emisor.id || data.emisor.nombre || data.emisor.name
             const name = (data.emisor.nombre || data.emisor.name || idE || '').toString()
             const idNorm = norm(name)
-            // do NOT persist contacts in IndexedDB
             data.emisorId = idNorm
             data.emisor = name
           }
@@ -386,7 +297,6 @@ export default function useWebSocket() {
 
           setMessages((m) => m.map(msg => msg.localId === localKey ? Object.assign({}, data, { id, ts: data.ts || Date.now(), status: 'sent', emisorNorm: emNorm, receptorNorm, grupoNorm }) : msg))
           pending.current.delete(data.clientId)
-          try { if (dbRef.current) dbRef.current.migrateLocalId(localKey, id, Object.assign({}, data, { ts: data.ts || Date.now() })) } catch (e) { console.error('Error migrando mensaje reconciliado', e) }
           return
         }
 
@@ -404,11 +314,6 @@ export default function useWebSocket() {
         // Si el emisor es el usuario actual, esto es un eco/ack: NO insertar duplicado.
         const currentUser = usernameRef.current
         if (currentUser && (item.emisorNorm || norm(item.emisor)) === currentUser) {
-          try {
-            if (dbRef.current && item.localId && item.id) {
-              try { dbRef.current.migrateLocalId(item.localId, item.id, item).catch(()=>{}) } catch(e){}
-            }
-          } catch (e) { console.error('Error migrando mensaje local desde echo', e) }
           setMessages(prev => prev.map(m => m.localId === item.localId ? Object.assign({}, m, item) : m))
           return
         }
@@ -423,11 +328,7 @@ export default function useWebSocket() {
           } catch (e) {}
           return [...prev, item]
         })
-        try {
-          if (dbRef.current) {
-            if (item.tipo === 'grupo' || item.grupo) {
-              try { dbRef.current.add(item.grupo, []).catch(()=>{}) } catch(e){}
-              // do NOT persist group as a contact in IndexedDB
+        if (item.tipo === 'grupo' || item.grupo) {
               try {
                 const current = usernameRef.current
                 if (current) {
@@ -436,10 +337,7 @@ export default function useWebSocket() {
                   setGroupsForCurrent(current, newList)
                 }
               } catch (e) {}
-            }
-            dbRef.current.addMessage(item)
-          }
-        } catch (e) { console.error('Error guardando mensaje', e) }
+        }
         return
       }
 
@@ -468,7 +366,6 @@ export default function useWebSocket() {
           const integrantes = Array.isArray(data && data.miembros) ? (data.miembros.map(x => String(x).trim())) : []
           const nombre = (data && (data.nombreGrupo || data.nombre) ? (data.nombreGrupo || data.nombre) : JSON.stringify(data)).toString().trim()
           if (current && integrantes.includes(String(current).trim())) {
-            if (dbRef.current) dbRef.current.add(nombre, integrantes).catch(err => console.error('Error guardando grupo:', err))
             const current = usernameRef.current
             if (current) {
               const existing = Array.isArray(groupsByUser[current]) ? groupsByUser[current] : Array.isArray(groups) ? groups : []
@@ -484,7 +381,6 @@ export default function useWebSocket() {
     ws.onclose = () => {
       setConnected(false)
       setUsers([])
-      // do NOT persist contacts in IndexedDB on close
     }
 
     ws.onerror = () => {
@@ -508,17 +404,9 @@ export default function useWebSocket() {
     const clientId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `c-${Date.now()}-${Math.floor(Math.random()*1000000)}`
     const em = (emisorName || '').toString()
     const emNorm = em.toString().trim().toLowerCase()
-    let receptorForLocal = null
-    let receptorNorm = null
-    if (isGroup) {
-      receptorForLocal = receptorTrim
-    } else if (receptor === 'Todos') {
-      receptorForLocal = 'Todos'
-      receptorNorm = 'todos'
-    } else {
-      receptorForLocal = [receptor]
-      receptorNorm = [ (receptor || '').toString().trim().toLowerCase() ]
-    }
+    const receptorNorm = isGroup
+      ? null
+      : (receptor === 'Todos' ? 'todos' : [ (receptor || '').toString().trim().toLowerCase() ])
 
     // build local message with explicit tipo and fields: 'privado' or 'grupo' (or broadcast)
     let local = null
@@ -531,7 +419,6 @@ export default function useWebSocket() {
     }
     setMessages((m) => [...m, local])
     pending.current.set(clientId, clientId)
-    try { if (dbRef.current) dbRef.current.addMessage(local) } catch (e) { console.error('Error guardando mensaje local', e) }
 
     const payload = receptor === 'Todos'
       ? { mensaje: 'CHAT', data: { receptor: 'Todos', mensaje: texto, emisor: em, clientId } }
@@ -556,20 +443,8 @@ export default function useWebSocket() {
     wsRef.current.send(JSON.stringify({ mensaje: 'LEIDO', data: { id_mensaje, emisor: originalEmisor, lector: lector || null } }))
   }, [setMessages])
 
-  // Cargar mensajes desde IndexedDB para un target (Usuarios o Grupos)
-  const loadMessagesFor = useCallback(async (target, usuarioActualParam) => {
-    try {
-      if (!dbRef.current) return []
-      const msgs = await dbRef.current.getMessagesFor(target, usuarioActualParam)
-      if (!Array.isArray(msgs) || msgs.length === 0) return msgs
-      // merge into state avoiding duplicates by id/localId
-      setMessages((prev) => {
-        const existingIds = new Set(prev.map(x => x.id || x.localId).filter(Boolean))
-        const toAdd = msgs.filter(x => !(existingIds.has(x.id || x.localId)))
-        return [...prev, ...toAdd]
-      })
-      return msgs
-    } catch (e) { console.error('loadMessagesFor error', e); return [] }
+  const loadMessagesFor = useCallback(async () => {
+    return []
   }, [])
 
   const createGroup = useCallback((nombreGrupo, miembros) => {
@@ -580,20 +455,17 @@ export default function useWebSocket() {
   const leaveGroup = useCallback(async (grupo) => {
     try {
       const me = usernameRef.current
-      if (!dbRef.current || !grupo || !me) return false
-      await dbRef.current.removeUserFromGroup(grupo, me)
-      // delete local messages for that group
-      await dbRef.current.deleteMessagesByGroup(grupo)
-      // update UI state: remove group from visible groups and remove messages
-      // update only current user's groups
+      if (!grupo || !me) return false
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ mensaje: 'LEAVE_GROUP', data: { grupo } }))
+      }
       setGroupsByUser(prev => {
         const copy = Object.assign({}, prev || {})
         const list = Array.isArray(copy[me]) ? copy[me].filter(g => g !== grupo) : []
         copy[me] = list
         return copy
       })
-      // refresh visible groups for current user
-      if (usernameRef.current) setGroups(groupsByUser[usernameRef.current] || [])
+      setGroups(prev => Array.isArray(prev) ? prev.filter(g => g !== grupo) : [])
       setMessages(prev => (Array.isArray(prev) ? prev.filter(m => !(m.tipo === 'grupo' && m.grupo === grupo)) : []))
       return true
     } catch (e) { console.error('leaveGroup error', e); return false }
@@ -601,9 +473,11 @@ export default function useWebSocket() {
 
   const deleteContact = useCallback(async (contactId) => {
     try {
-      if (!dbRef.current || !contactId) return false
-      await dbRef.current.deleteContactAndMessages(contactId)
-      // update UI state: remove contact, remove messages
+      // Ask backend to delete contact link and related server-side data
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ mensaje: 'DELETE_CONTACT', data: contactId }))
+      }
+      // Update UI state while the backend owns the canonical data.
       setUsers(prev => (Array.isArray(prev) ? prev.filter(u => (u && u.username ? u.username : u) !== contactId) : []))
       setMessages(prev => (Array.isArray(prev) ? prev.filter(m => !(m.tipo === 'privado' && (m.emisor === contactId || m.receptor === contactId))) : []))
       return true
@@ -613,7 +487,6 @@ export default function useWebSocket() {
   const addContact = useCallback(async (username) => {
     if (!username) return false
     const uname = (username || '').toString().trim()
-    const id = norm(uname)
     // In users-first design, avoid local contact stores; request server to add contact if connected
     // If connected, ask server to add contact (will validate existence and create mutual links)
     try {
@@ -629,10 +502,10 @@ export default function useWebSocket() {
 
   const renameGroup = useCallback(async (oldName, newName) => {
     try {
-      if (!dbRef.current || !oldName || !newName) return false
-      await dbRef.current.renameGroup(oldName, newName)
-      // update UI state
-      // update only current user's groups
+      if (!oldName || !newName) return false
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ mensaje: 'RENAME_GROUP', data: { oldName, newName } }))
+      }
       const me = usernameRef.current
       if (me) {
         setGroupsByUser(prev => {
@@ -644,29 +517,25 @@ export default function useWebSocket() {
         setGroups(prev => Array.isArray(prev) ? prev.map(g => g === oldName ? newName : g) : prev)
       }
       setMessages(prev => Array.isArray(prev) ? prev.map(m => (m && m.tipo === 'grupo' && m.grupo === oldName) ? Object.assign({}, m, { grupo: newName, grupoNorm: norm(newName) }) : m) : prev)
-      // upsert contact entry for new group id
-      // do NOT persist contacts in IndexedDB for group rename
-      // remove old group contact entry if exists
-      try { if (dbRef.current) fire(dbRef.current.deleteContact((oldName||'').toString().trim().toLowerCase())) } catch (e) {}
       return true
     } catch (e) { console.error('renameGroup error', e); return false }
   }, [])
 
   const renameContact = useCallback(async (contactId, newName) => {
     try {
-      if (!dbRef.current || !contactId || !newName) return false
-      // read existing to compute old display name
-      const existing = await dbRef.current.getContact(contactId).catch(()=>null)
-      const oldName = (existing && existing.nombre) ? existing.nombre : contactId
-      await dbRef.current.renameContact(contactId, newName)
-      // update UI lists
-      setUsers(prev => Array.isArray(prev) ? prev.map(u => (u && u.username === oldName ? Object.assign({}, u, { username: newName }) : u)) : prev)
+      if (!contactId || !newName) return false
+      // ask backend to rename/update contact label; backend owns canonical usernames
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ mensaje: 'RENAME_CONTACT', data: { contactId, newName } }))
+      }
+      // update UI lists optimistically based on current users state
+      setUsers(prev => Array.isArray(prev) ? prev.map(u => (u && (u.username === contactId || u.username === (u.nombre || '')) ? Object.assign({}, u, { username: newName }) : u)) : prev)
       setMessages(prev => Array.isArray(prev) ? prev.map(m => {
         if (!m) return m
         if (m.tipo === 'privado') {
           const copy = Object.assign({}, m)
-          if (copy.emisor === oldName) { copy.emisor = newName; copy.emisorNorm = norm(newName) }
-          if (copy.receptor === oldName) { copy.receptor = newName; copy.receptorNorm = norm(newName) }
+          if (copy.emisor === contactId) { copy.emisor = newName; copy.emisorNorm = norm(newName) }
+          if (copy.receptor === contactId) { copy.receptor = newName; copy.receptorNorm = norm(newName) }
           return copy
         }
         return m

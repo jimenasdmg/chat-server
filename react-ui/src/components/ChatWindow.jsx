@@ -73,7 +73,7 @@ export default function ChatWindow({ usuarioActual, usuarioSeleccionado, setUsua
 
   // cuando se abre o cambia la conversación, marcar mensajes entrantes como leídos
   useEffect(() => {
-    // Al cambiar la conversación, cargar historial desde IndexedDB si está disponible
+    // Al cambiar la conversación, el historial ya viene del servidor.
     if (typeof loadMessagesFor === 'function') {
       try { loadMessagesFor(usuarioSeleccionado, usuarioActual) } catch (e) {}
     }
