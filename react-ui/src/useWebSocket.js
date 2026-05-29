@@ -150,7 +150,8 @@ export default function useWebSocket() {
       if ((p && p.type === 'conectados') || mensaje === 'CONECTADOS') {
         try {
           const conectados = Array.isArray(data) ? data : (data && Array.isArray(data.users) ? data.users : [])
-          setUsers(prev => Array.isArray(prev) ? prev.map(u => ({ ...u, online: Array.isArray(conectados) && conectados.includes(u.username) })) : prev)
+          const conectadosNorm = Array.isArray(conectados) ? conectados.map(c => (c||'').toString().trim().toLowerCase()) : []
+          setUsers(prev => Array.isArray(prev) ? prev.map(u => ({ ...u, online: conectadosNorm.includes((u.username||'').toString().trim().toLowerCase()) })) : prev)
         } catch (e) { console.error('Error procesando CONECTADOS', e) }
         return
       }
@@ -163,7 +164,14 @@ export default function useWebSocket() {
           if (!uname) return
           const online = typeof payload.online !== 'undefined' ? !!payload.online : Boolean(payload && payload.online)
           const lastSeen = payload && (payload.lastSeen || payload.last_seen) ? (payload.lastSeen || payload.last_seen) : (payload && payload.last_seen === 0 ? 0 : null)
-          setUsers(prev => Array.isArray(prev) ? prev.map(u => u.username === uname ? { ...u, online: online, lastSeen: lastSeen } : u) : prev)
+          const unameNorm = (uname||'').toString().trim().toLowerCase()
+          setUsers(prev => Array.isArray(prev) ? prev.map(u => {
+            try {
+              const uNorm = (u.username||'').toString().trim().toLowerCase()
+              if (uNorm === unameNorm) return { ...u, online: online, lastSeen: lastSeen }
+            } catch(e) {}
+            return u
+          }) : prev)
         } catch (e) { console.error('Error procesando STATUS', e) }
         return
       }
