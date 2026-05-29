@@ -1,5 +1,7 @@
 import { db } from './db.js'
 
+const norm = (s) => (s != null ? s.toString().trim() : s)
+
 const storage = {
   async init() {
     // initialization hook retained for parity; no contact-table migration performed
@@ -17,33 +19,55 @@ const storage = {
   },
 
   async addUser(nombre) {
-    if (!nombre) return
-    console.log('MariaDB INSERT usuario', nombre)
-    const [rows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [nombre])
+    const nombreLimpio = norm(nombre)
+    if (!nombreLimpio) return
+    console.log('MariaDB INSERT usuario', nombreLimpio)
+    const [rows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [nombreLimpio])
     if (rows.length === 0) {
-      await db.execute('INSERT INTO usuarios (username, online, created_at, last_seen) VALUES (?, 1, NOW(), NOW())', [nombre])
+      await db.execute('INSERT INTO usuarios (username, online, created_at, last_seen) VALUES (?, 1, NOW(), NOW())', [nombreLimpio])
     } else {
-      await db.execute('UPDATE usuarios SET online = 1, last_seen = NOW() WHERE username = ?', [nombre])
+      await db.execute('UPDATE usuarios SET username = ?, online = 1, last_seen = NOW() WHERE LOWER(username) = LOWER(?)', [nombreLimpio, nombreLimpio])
     }
   },
 
   async removeUser(nombre) {
-    if (!nombre) return
-    console.log('MariaDB UPDATE usuario offline', nombre)
-    await db.execute('UPDATE usuarios SET online = 0, last_seen = NOW() WHERE username = ?', [nombre])
+    const nombreLimpio = norm(nombre)
+    if (!nombreLimpio) return
+    console.log('MariaDB UPDATE usuario offline', nombreLimpio)
+    await db.execute('UPDATE usuarios SET username = ?, online = 0, last_seen = NOW() WHERE LOWER(username) = LOWER(?)', [nombreLimpio, nombreLimpio])
   },
 
   async getUsers() {
     const [rows] = await db.execute('SELECT id, username, online, created_at, last_seen FROM usuarios')
-    return rows.map(r => ({ id: r.id, username: r.username, online: !!r.online, last_seen: r.last_seen }))
+    // Deduplicate users by case-insensitive username: prefer most recent last_seen and online=true
+    const map = new Map()
+    for (const r of rows) {
+      if (!r || !r.username) continue
+      const key = (r.username || '').toString().trim().toLowerCase()
+      const existing = map.get(key)
+      const lastSeen = r.last_seen || null
+      const online = !!r.online
+      if (!existing) {
+        map.set(key, { id: r.id, username: r.username, online, last_seen: lastSeen })
+      } else {
+        // Merge: if any row shows online=true, keep online
+        existing.online = existing.online || online
+        // keep the most recent last_seen
+        if (!existing.last_seen) existing.last_seen = lastSeen
+        else if (lastSeen && new Date(lastSeen) > new Date(existing.last_seen)) existing.last_seen = lastSeen
+        map.set(key, existing)
+      }
+    }
+    return Array.from(map.values())
   },
 
   // Ensure a user exists; returns the user id (creates if missing)
   async ensureUser(nombre) {
-    if (!nombre) return null
-    const [rows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [nombre])
+    const nombreLimpio = norm(nombre)
+    if (!nombreLimpio) return null
+    const [rows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [nombreLimpio])
     if (rows && rows.length) return rows[0].id
-    const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [nombre])
+    const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [nombreLimpio])
     return ins.insertId
   },
 
@@ -56,8 +80,9 @@ const storage = {
 
   // Buscar usuario por nombre; retorna fila o null
   async buscarUsuario(nombre) {
-    if (!nombre) return null
-    const [rows] = await db.execute('SELECT id, username, online, created_at, last_seen FROM usuarios WHERE username = ?', [nombre])
+    const nombreLimpio = norm(nombre)
+    if (!nombreLimpio) return null
+    const [rows] = await db.execute('SELECT id, username, online, created_at, last_seen FROM usuarios WHERE LOWER(username) = LOWER(?)', [nombreLimpio])
     if (rows && rows.length) return rows[0]
     return null
   },
@@ -76,10 +101,11 @@ const storage = {
 
       let emisorId = null
       if (msg.emisor) {
-        const [erows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [msg.emisor])
+        const emisorLimpio = norm(msg.emisor)
+        const [erows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [emisorLimpio])
         if (erows && erows.length) emisorId = erows[0].id
         else {
-          const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [msg.emisor])
+          const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [emisorLimpio])
           emisorId = ins.insertId
         }
       }
@@ -94,7 +120,8 @@ const storage = {
       if (tipo !== 'grupo' && !msg.broadcast) {
         const targets = Array.isArray(msg.receptor) ? msg.receptor : [msg.receptor]
         if (targets && targets[0]) {
-          const [trows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [targets[0]])
+          const targetLimpio = norm(targets[0])
+          const [trows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [targetLimpio])
           if (trows && trows.length) receptorId = trows[0].id
         }
       }
@@ -125,15 +152,16 @@ const storage = {
               await db.execute('INSERT INTO message_recipients (mensaje_id, usuario_id, entregado, leido, entregado_at, leido_at) VALUES (?, ?, 0, 0, NULL, NULL)', [id, r.usuario_id])
             }
         }
-      } else {
+        } else {
         const targets = Array.isArray(msg.receptor) ? msg.receptor : [msg.receptor]
         for (const t of targets) {
           if (!t) continue
-          const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [t])
+          const tLimpio = norm(t)
+          const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [tLimpio])
           let uid = null
           if (urows && urows.length) uid = urows[0].id
           else {
-            const [insertRes] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [t])
+            const [insertRes] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [tLimpio])
             uid = insertRes.insertId
           }
           await db.execute('INSERT INTO message_recipients (mensaje_id, usuario_id, entregado, leido, entregado_at, leido_at) VALUES (?, ?, 0, 0, NULL, NULL)', [id, uid])
@@ -155,7 +183,8 @@ const storage = {
     if (!id) return []
     let uid = lector
     if (typeof lector === 'string') {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [lector])
+      const lectorLimpio = norm(lector)
+      const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [lectorLimpio])
       if (urows && urows.length) uid = urows[0].id
     }
     if (uid) await db.execute('UPDATE message_recipients SET leido = 1, leido_at = NOW() WHERE mensaje_id = ? AND usuario_id = ?', [id, uid])
@@ -167,7 +196,8 @@ const storage = {
     if (!mensajeId) return
     let uid = receptor
     if (typeof receptor === 'string') {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [receptor])
+      const receptorLimpio = norm(receptor)
+      const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [receptorLimpio])
       if (urows && urows.length) uid = urows[0].id
     }
     if (uid) await db.execute('UPDATE message_recipients SET entregado = 1, entregado_at = NOW() WHERE mensaje_id = ? AND usuario_id = ? AND entregado = 0', [mensajeId, uid])
@@ -178,7 +208,8 @@ const storage = {
     console.log('MariaDB SELECT mensajes pendientes para', receptor)
     let uid = receptor
     if (typeof receptor === 'string') {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [receptor])
+      const receptorLimpio = norm(receptor)
+      const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [receptorLimpio])
       if (urows && urows.length) uid = urows[0].id
     }
     if (!uid) return []
@@ -222,7 +253,8 @@ const storage = {
   async getGroups(usuario) {
     const out = []
     if (usuario) {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
+      const usuarioLimpio = norm(usuario)
+      const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [usuarioLimpio])
       if (!urows || !urows.length) return out
       const uid = urows[0].id
       const [rows] = await db.execute('SELECT grupo_id FROM grupo_integrantes WHERE usuario_id = ?', [uid])
@@ -267,7 +299,8 @@ const storage = {
     if (!grupo || !usuario) return false
     const [grows] = await db.execute('SELECT id FROM grupos WHERE nombre = ?', [grupo])
     if (!grows || !grows.length) return false
-    const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [usuario])
+    const usuarioLimpio = norm(usuario)
+    const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [usuarioLimpio])
     if (!urows || !urows.length) return false
     await db.execute('DELETE FROM grupo_integrantes WHERE grupo_id = ? AND usuario_id = ?', [grows[0].id, urows[0].id])
     return true
@@ -293,10 +326,11 @@ const storage = {
     }
     // ensure emisor exists
     let emisorId = null
-    const [erows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [emisor])
+    const emisorLimpio = norm(emisor)
+    const [erows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [emisorLimpio])
     if (erows && erows.length) emisorId = erows[0].id
     else {
-      const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [emisor])
+      const [ins] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [emisorLimpio])
       emisorId = ins.insertId
     }
 
@@ -326,15 +360,59 @@ const storage = {
     const [msgs] = await db.execute('SELECT m.id, u.username AS emisor, m.contenido AS mensaje, m.enviado_at AS ts FROM mensajes m LEFT JOIN usuarios u ON m.emisor_id = u.id WHERE m.grupo_id = ? ORDER BY m.enviado_at ASC', [gid])
     return msgs.map(r => ({ id: r.id, emisor: r.emisor, mensaje: r.mensaje, ts: r.ts }))
   },
+  
+  // Devuelve un mapa de contadores de mensajes no leídos para un usuario,
+  // agrupado por conversación: clave = nombre de usuario (privado) o nombre de grupo (grupo)
+  async getUnreadByConversation(usuario) {
+    if (!usuario) return {}
+    const usuarioLimpio = norm(usuario)
+    const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [usuarioLimpio])
+    if (!urows || !urows.length) return {}
+    const uid = urows[0].id
+    const [rows] = await db.execute(
+      `SELECT m.tipo AS tipo, g.nombre AS grupo, u.username AS emisor, COUNT(*) AS cnt
+       FROM message_recipients mr
+       JOIN mensajes m ON mr.mensaje_id = m.id
+       LEFT JOIN grupos g ON m.grupo_id = g.id
+       LEFT JOIN usuarios u ON m.emisor_id = u.id
+       WHERE mr.usuario_id = ? AND mr.leido = 0
+       GROUP BY m.tipo, g.nombre, u.username`,
+      [uid]
+    )
+    const out = {}
+    for (const r of rows) {
+      if (r.tipo === 'grupo' || r.grupo) {
+        const gname = r.grupo || 'Grupo desconocido'
+        out[gname] = (out[gname] || 0) + (r.cnt || 0)
+      } else {
+        const ename = r.emisor || 'Desconocido'
+        out[ename] = (out[ename] || 0) + (r.cnt || 0)
+      }
+    }
+    return out
+  },
+
+  // Devuelve el número total de mensajes no leídos del usuario
+  async getUnreadCount(usuario) {
+    if (!usuario) return 0
+    const usuarioLimpio = norm(usuario)
+    const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [usuarioLimpio])
+    if (!urows || !urows.length) return 0
+    const uid = urows[0].id
+    const [rows] = await db.execute('SELECT COUNT(*) AS cnt FROM message_recipients WHERE usuario_id = ? AND leido = 0', [uid])
+    return (rows && rows[0] && rows[0].cnt) ? Number(rows[0].cnt) : 0
+  },
   // contact table removed from server-side phase 1; contact links should be managed by application logic if needed
 
   async updateOnline(username, estado) {
     if (!username) return
     try {
+      const uname = norm(username)
+      if (!uname) return
       if (estado) {
-        await db.execute('UPDATE usuarios SET online = 1 WHERE username = ?', [username])
+        await db.execute('UPDATE usuarios SET username = ?, online = 1 WHERE LOWER(username) = LOWER(?)', [uname, uname])
       } else {
-        await db.execute('UPDATE usuarios SET online = 0, last_seen = NOW() WHERE username = ?', [username])
+        await db.execute('UPDATE usuarios SET username = ?, online = 0, last_seen = NOW() WHERE LOWER(username) = LOWER(?)', [uname, uname])
       }
     } catch (e) { console.error('storage:updateOnline', e) }
   },
@@ -345,10 +423,11 @@ const storage = {
     // optional creador (username)
     let creadorId = null
     if (group.creador) {
-      const [crows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [group.creador])
+      const creadorLimpio = norm(group.creador)
+      const [crows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [creadorLimpio])
       if (crows && crows.length) creadorId = crows[0].id
       else {
-        const [insc] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [group.creador])
+        const [insc] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [creadorLimpio])
         creadorId = insc.insertId
       }
     }
@@ -366,11 +445,12 @@ const storage = {
     } else gid = grows[0].id
     const miembros = Array.isArray(group.miembros) ? group.miembros : []
     for (const m of miembros) {
-      const [urows] = await db.execute('SELECT id FROM usuarios WHERE username = ?', [m])
+      const mLimpio = norm(m)
+      const [urows] = await db.execute('SELECT id FROM usuarios WHERE LOWER(username) = LOWER(?)', [mLimpio])
       let uid = null
       if (urows && urows.length) uid = urows[0].id
       else {
-        const [insu] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [m])
+        const [insu] = await db.execute('INSERT INTO usuarios (username, created_at) VALUES (?, NOW())', [mLimpio])
         uid = insu.insertId
       }
       await db.execute('INSERT INTO grupo_integrantes (grupo_id, usuario_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE usuario_id = usuario_id', [gid, uid])

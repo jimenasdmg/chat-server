@@ -8,6 +8,7 @@ export default function useWebSocket() {
   // per-user maps to avoid cross-user clobbering
   const [groupsByUser, setGroupsByUser] = useState({})
   const [messages, setMessages] = useState([])
+  const [unreadMap, setUnreadMap] = useState({})
   const [dbReady] = useState(true)
   const usernameRef = useRef(null)
   const seenIds = useRef(new Set())
@@ -135,6 +136,14 @@ export default function useWebSocket() {
           setUsers(mapped)
           console.log('USERS', mapped)
         } catch (e) { console.error('Error procesando USERS', e) }
+        return
+      }
+
+      if ((p && p.type === 'unread_counts') || mensaje === 'UNREAD_COUNTS') {
+        try {
+          const map = (p && p.type === 'unread_counts' && p.data) ? p.data : (data || {})
+          setUnreadMap(typeof map === 'object' ? map : {})
+        } catch (e) { console.error('Error procesando UNREAD_COUNTS', e) }
         return
       }
 
@@ -443,6 +452,11 @@ export default function useWebSocket() {
     wsRef.current.send(JSON.stringify({ mensaje: 'LEIDO', data: { id_mensaje, emisor: originalEmisor, lector: lector || null } }))
   }, [setMessages])
 
+  const clearUnreadFor = useCallback((contactId) => {
+    if (!contactId) return
+    setUnreadMap(prev => Object.assign({}, prev, { [contactId]: 0 }))
+  }, [])
+
   const loadMessagesFor = useCallback(async () => {
     return []
   }, [])
@@ -544,6 +558,6 @@ export default function useWebSocket() {
     } catch (e) { console.error('renameContact error', e); return false }
   }, [])
 
-  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, groups, messages, groupsByUser, dbReady }
+  return { connect, disconnect, sendChat, sendReadReceipt, createGroup, leaveGroup, deleteContact, renameGroup, renameContact, addContact, connected, users, groups, messages, groupsByUser, dbReady, unreadMap, clearUnreadFor }
 
 }

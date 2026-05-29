@@ -11,7 +11,7 @@ export default function App() {
   const [wsUrl, setWsUrl] = useState(WS_URL)
   const [usuarioActual, setUsuarioActual] = useState('')
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState('Todos')
-  const [unread, setUnread] = useState({})
+  // unread counts now provided by the WebSocket hook
 
   const {
     connect,
@@ -30,7 +30,9 @@ export default function App() {
     renameContact,
     addContact,
     groupsByUser,
-    dbReady
+    dbReady,
+    unreadMap,
+    clearUnreadFor
   } = useWebSocket()
   
 
@@ -52,28 +54,7 @@ export default function App() {
     }
   }
 
-  // Track new private messages and increment unread counts when appropriate
-  React.useEffect(() => {
-    if (!Array.isArray(messages)) return
-    const prevRef = App._prevMessages || []
-    const prevIds = new Set(prevRef.map(m => m.id || m.localId).filter(Boolean))
-    const newItems = messages.filter(m => !(prevIds.has(m.id || m.localId)))
-    if (newItems.length === 0) { App._prevMessages = messages.slice(); return }
-    for (const m of newItems) {
-      try {
-        if (m.tipo === 'privado') {
-          const em = String(m.emisor || '').toString()
-          if (!em) continue
-          // Do not increment if I sent it
-          if (em.toString().trim().toLowerCase() === (usuarioActual||'').toString().trim().toLowerCase()) continue
-          // Do not increment if chat is currently open with that user
-          if (usuarioSeleccionado && usuarioSeleccionado.toString().trim() === em.toString().trim()) continue
-          setUnread(prev => ({ ...prev, [em]: (prev[em] || 0) + 1 }))
-        }
-      } catch (e) {}
-    }
-    App._prevMessages = messages.slice()
-  }, [messages, usuarioSeleccionado, usuarioActual])
+  // server provides unread counters; local increment logic removed
 
   const handleConnect = (name, url) => {
     const n = String(name || '').trim()
@@ -114,7 +95,7 @@ export default function App() {
               mensajes={messages}
               onCreateGroup={createGroup}
               groups={groups}
-              unread={unread}
+              unread={unreadMap}
               onOpenCreateGroup={() => setShowCreateGroupModal(true)}
             />
           </aside>
@@ -132,7 +113,7 @@ export default function App() {
               onSend={sendChat}
               onMarkAsRead={sendReadReceipt}
               loadMessagesFor={loadMessagesFor}
-              clearUnread={(contactId) => setUnread(prev => Object.assign({}, prev, { [contactId]: 0 }))}
+              clearUnread={(contactId) => clearUnreadFor(contactId)}
               leaveGroup={leaveGroup}
               deleteContact={deleteContact}
               renameGroup={renameGroup}

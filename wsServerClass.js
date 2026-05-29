@@ -43,7 +43,7 @@ class wsServer {
 				try {
 					for (const cliente of this.wss.clients) {
 						if (!cliente || cliente.readyState !== 1) continue
-						this.MSG(cliente, 'STATUS', { user: ws.data, online: false })
+						this.MSG(cliente, 'STATUS', { user: ws.data, online: false, lastSeen: Date.now() })
 					}
 					console.log('STATUS', { user: ws.data, online: false })
 				} catch (e) { console.error('Error broadcasting STATUS on close', e) }
@@ -72,6 +72,11 @@ class wsServer {
 			ws.send(JSON.stringify({ mensaje: 'GRUPOS', data: await storage.getGroups(ws.data) }))
 			const allUsers = await storage.getUsers()
 			ws.send(JSON.stringify({ mensaje: 'USERS', data: allUsers }))
+			// send unread counters for this user (per conversación)
+			try {
+				const unreadMap = await storage.getUnreadByConversation(ws.data)
+				ws.send(JSON.stringify({ mensaje: 'UNREAD_COUNTS', data: unreadMap }))
+			} catch (e) { console.error('Error sending UNREAD_COUNTS on IDENTIFICACION', e) }
 			try {
 				const contactsForClient = Array.isArray(allUsers) ? allUsers.filter(u => String(u.nombre).trim() !== String(ws.data).trim()) : []
 				console.log('CONTACTS as USERS', contactsForClient)
@@ -150,10 +155,21 @@ class wsServer {
 				for (const cliente of this.wss.clients) {
 					if(!cliente || !cliente.data) continue
 					this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
-					if (cliente.data) delivered.push(cliente.data)
+					if (cliente.data) {
+						try { await storage.markDelivered(msgObj.id, cliente.data) } catch(e) { console.error('storage:markDelivered', e) }
+						delivered.push(cliente.data)
+					}
 				}
 				// inform sender about delivered list
 				this.MSG(ws, 'DELIVERED', Object.assign({ id_mensaje: msgObj.id, deliveredTo: delivered }, clientId ? { clientId } : {}))
+				// enviar actualización de contadores de no leídos a cada receptor afectado
+				try {
+					for (const r of delivered) {
+						const unreadMap = await storage.getUnreadByConversation(r)
+						const sock = this.socketId(r)
+						if (sock) this.MSG(sock, 'UNREAD_COUNTS', unreadMap)
+					}
+				} catch (e) { console.error('Error sending UNREAD_COUNTS after BROADCAST', e) }
 			} else {
 				const targets = Array.isArray(receptor) ? receptor : [receptor]
 				// Si era un mensaje a grupo, crear estructura de mensaje de grupo
@@ -172,28 +188,27 @@ class wsServer {
 					// ack to sender
 					this.MSG(ws, 'SENT', Object.assign({ id_mensaje: msgObj.id, ts: msgObj.ts }, clientId ? { clientId } : {}))
 					// send to integrantes connected except emisor
-				const delivered = []
-				for (const cliente of this.wss.clients) {
-					if(!cliente || !cliente.data) continue
-					const cdata = String(cliente.data).trim()
-					if (cdata === String(emisor).trim()) {
-						// ensure sender gets a copy
-						this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
-						continue
+					const delivered = []
+					for (const cliente of this.wss.clients) {
+						if(!cliente || !cliente.data) continue
+						const cdata = String(cliente.data).trim()
+						// skip sender here; we'll send a single echo below to avoid duplicates
+						if (cdata === String(emisor).trim()) continue
+						if (integrantes.includes(cliente.data)) {
+							this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
+							try {
+								await storage.markDelivered(msgObj.id, cliente.data)
+								delivered.push(cliente.data)
+							} catch (e) { console.error('storage:markDelivered', e) }
+						}
 					}
-					if (integrantes.includes(cliente.data)) {
-						this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
-						try {
-							await storage.markDelivered(msgObj.id, cliente.data)
-							delivered.push(cliente.data)
-						} catch (e) { console.error('storage:markDelivered', e) }
-					}
-				}
-				// inform sender about delivered list
-				this.MSG(ws, 'DELIVERED', { id_mensaje: msgObj.id, deliveredTo: delivered })
-				console.log('MENSAJE GRUPO', { grupo: groupName, id: msgObj.id })
-				console.log('ENTREGA GRUPO', { id: msgObj.id, deliveredTo: delivered })
-				return
+					// send single echo to sender to avoid duplicate copies
+					try { this.MSG(ws, 'CHAT', Object.assign({}, msgObj)) } catch(e) {}
+					// inform sender about delivered list
+					this.MSG(ws, 'DELIVERED', { id_mensaje: msgObj.id, deliveredTo: delivered })
+					console.log('MENSAJE GRUPO', { grupo: groupName, id: msgObj.id })
+					console.log('ENTREGA GRUPO', { id: msgObj.id, deliveredTo: delivered })
+					return
 				} else {
 					const storedReceptor = Array.isArray(receptor) ? receptor.slice() : receptor
 					const msgObj = { emisor, receptor: storedReceptor, mensaje, ts: Date.now(), broadcast: false, readBy: [] }
@@ -210,9 +225,18 @@ class wsServer {
 						if(!cliente || !cliente.data) continue
 						if (targets.includes(cliente.data)) {
 							this.MSG(cliente, 'CHAT', Object.assign({}, msgObj, { receptor: cliente.data }))
+							try { await storage.markDelivered(msgObj.id, cliente.data); delivered.push(cliente.data) } catch(e) { console.error('storage:markDelivered', e) }
 						}
 						if (cliente.data === emisor) this.MSG(cliente, 'CHAT', Object.assign({}, msgObj))
 					}
+					// enviar actualización de contadores de no leídos a cada receptor afectado
+					try {
+						for (const r of delivered) {
+							const unreadMap = await storage.getUnreadByConversation(r)
+							const sock = this.socketId(r)
+							if (sock) this.MSG(sock, 'UNREAD_COUNTS', unreadMap)
+						}
+					} catch (e) { console.error('Error sending UNREAD_COUNTS after PRIVATE CHAT', e) }
 					return
 				}
 
@@ -258,6 +282,14 @@ class wsServer {
 			const echo = Object.assign({}, msgObj)
 			if (data && data.clientId) echo.clientId = data.clientId
 			this.MSG(ws, 'CHAT', echo)
+			// enviar actualización de contadores de no leídos a cada receptor afectado
+			try {
+				for (const r of delivered) {
+					const unreadMap = await storage.getUnreadByConversation(r)
+					const sock = this.socketId(r)
+					if (sock) this.MSG(sock, 'UNREAD_COUNTS', unreadMap)
+				}
+			} catch (e) { console.error('Error sending UNREAD_COUNTS after CHAT_GRUPO', e) }
 			// informar entregas al emisor
 			this.MSG(ws, 'DELIVERED', { id_mensaje: msgObj.id, deliveredTo: delivered })
 			console.log('MENSAJE GRUPO', { grupo: grupo, id: msgObj.id })
@@ -382,6 +414,12 @@ class wsServer {
 				if(!cliente || !cliente.data) continue
 				if (cliente.data === originalEmisor) this.MSG(cliente, 'LEIDO', { id_mensaje, readers })
 			}
+			// enviar actualización de contadores de no leídos al lector
+			try {
+				const unreadMap = await storage.getUnreadByConversation(lector)
+				const sock = this.socketId(lector)
+				if (sock) this.MSG(sock, 'UNREAD_COUNTS', unreadMap)
+			} catch (e) { console.error('Error sending UNREAD_COUNTS after LEIDO', e) }
 		} catch (e) { console.error('storage:markRead', e) }
 	}
 }

@@ -105,6 +105,7 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
                       </small>
                     </div>
                     <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                      { (unread && (unread[u.username] || 0) > 0) && <div className="badge">{unread[u.username]}</div> }
                       <div className={`dot ${u && typeof u.online !== 'undefined' ? (u.online ? 'online' : 'offline') : 'offline'}`} />
                     </div>
                   </div>
@@ -137,6 +138,7 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
                       </small>
                     </div>
                     <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                      { (unread && (unread[u.username] || 0) > 0) && <div className="badge">{unread[u.username]}</div> }
                       <div className={`dot ${u && typeof u.online !== 'undefined' ? (u.online ? 'online' : 'offline') : 'offline'}`} />
                     </div>
                   </div>
@@ -166,8 +168,8 @@ export default function UsersList({ users: usersProp = [], usuarioSeleccionado, 
                   <div className="name">{groupName}</div>
                   <div className="sub">{preview || 'Grupo'}</div>
                 </div>
-                <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
-                  {unreadCount > 0 && <div className="badge">{unreadCount}</div>}
+                  <div style={{marginLeft:'auto', display:'flex', gap:8, alignItems:'center'}}>
+                  { (unread && (unread[groupName] || 0) > 0) ? <div className="badge">{unread[groupName]}</div> : (unreadCount > 0 && <div className="badge">{unreadCount}</div>) }
                   <div className="dot group" />
                 </div>
               </div>
